@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV — Пульт</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root { --bg:#0b0e18; --panel:#141a2c; --border:#2a3352; --text:#e8ecf7; --muted:#8a93b2;
+          --grad:linear-gradient(90deg,#ff007f,#7928ca); }
+  body { background: var(--bg); color: var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh;
+         display:flex; align-items:center; justify-content:center; padding:24px; }
+  .wrap { width:100%; max-width:900px; }
+  h1 { font-size:34px; font-weight:900; background:var(--grad); -webkit-background-clip:text;
+       -webkit-text-fill-color:transparent; text-transform:uppercase; margin-bottom:6px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:18px;
+          text-decoration:none; color:var(--text); transition:.15s; display:block; }
+  .card:hover { border-color:#ff007f; transform:translateY(-2px); }
+  .logo { height:56px; display:flex; align-items:center; margin-bottom:12px; }
+  .logo img { max-height:56px; max-width:120px; object-fit:contain; }
+  .name { font-weight:800; font-size:16px; margin-bottom:4px; }
+  .meta { color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>TV</h1>
+  <div class="sub">Пульт — выберите канал</div>
+  <div class="grid">
+<a class="card" href="channel_smeshariki.html"><div class="logo"><img src="https://lh3.googleusercontent.com/d/18xKX_FMnfQc555BHX40EppWZshSq0wK1" alt=""></div><div class="name">СмешТВ</div><div class="meta">101 эпизод</div></a>
+<a class="card" href="channel_smeshariki2.html"><div class="logo"><img src="https://lh3.googleusercontent.com/d/165GNzoFaaqjAd6f-NDtH7g1w8ZXph_7O" alt=""></div><div class="name">СмешТВ INTERNATIONAL</div><div class="meta">100 эпизода</div></a>
+<a class="card" href="channel_smeshariki3.html"><div class="logo"><img src="https://lh3.googleusercontent.com/d/165GNzoFaaqjAd6f-NDtH7g1w8ZXph_7O" alt=""></div><div class="name">SmeshTV INTERNATIONAL</div><div class="meta">100 эпизода</div></a>
+<a class="card" href="channel_minecraft.html"><div class="logo"><img src="https://lh3.googleusercontent.com/d/1LJ6ZRIuBvK2TjVQ5ba5OdfqVoNJ2q8Dn" alt=""></div><div class="name">Майн</div><div class="meta">8883 эпизода</div></a>
+<a class="card" href="channel_vibe.html"><div class="logo"><img src="https://lh3.googleusercontent.com/d/1UDjAWQ26hCgvtE4v18xwfVZX0keq0Mp8" alt=""></div><div class="name">Вайб!</div><div class="meta">32 эпизода</div></a>
+    <a class="card" href="my.html">
+      <div class="logo" style="font-size:34px;font-weight:900;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">+</div>
+      <div class="name">Мои каналы</div>
+      <div class="meta">Каналы из channels.js</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

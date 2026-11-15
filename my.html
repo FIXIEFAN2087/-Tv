@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мои каналы — TV 24/7</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  :root {
+    --bg: #0b0e18; --panel: #141a2c; --panel2: #1a2138; --border: #2a3352;
+    --text: #e8ecf7; --muted: #8a93b2; --accent: #ff007f; --green: #39e75f;
+    --grad: linear-gradient(90deg, #ff007f, #7928ca);
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  .app-container { display: flex; max-width: 1400px; margin: 0 auto; min-height: 100vh; padding: 20px; gap: 20px; }
+  .sidebar { width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; height: fit-content; }
+  .sidebar h2 { font-size: 13px; letter-spacing: 2px; color: var(--muted); font-weight: 700; }
+  .channel-list { display: flex; flex-direction: column; gap: 8px; }
+  .channel-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 14px; border-radius: 12px; cursor: pointer; text-align: left; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; transition: .15s; }
+  .channel-btn:hover { border-color: var(--accent); }
+  .channel-btn.active { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 4px 15px rgba(255,0,127,0.4); }
+  .channel-num { font-size: 11px; opacity: 0.7; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 6px; }
+  .main-content { flex: 1; display: flex; flex-direction: column; gap: 16px; max-width: 1000px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .brand-logo { font-size: 24px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; }
+  .live-clock { text-align: right; }
+  .live-clock .time { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .live-clock .date { color: var(--muted); font-size: 12px; }
+  .live-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(57,231,95,.1); border: 1px solid rgba(57,231,95,.4); color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 999px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+  .tv { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+  .screen { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 16/9; width: 100%; }
+  .screen-guard { position: absolute; inset: 0; z-index: 5; pointer-events: auto; }
+  .video-container { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .video-container iframe { width: 100%; height: 100%; border: 0; }
+  .off-air { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #000; z-index: 20; text-align: center; gap: 14px; }
+  .power-btn { background: var(--grad); color: #fff; border: none; font-weight: 800; font-size: 16px; padding: 14px 28px; border-radius: 999px; cursor: pointer; box-shadow: 0 8px 24px rgba(255,0,127,.6); transition: transform .15s; }
+  .power-btn:hover { transform: translateY(-2px); }
+  .tv-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 2px; }
+  .controls button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 0 16px; height: 38px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: .15s; }
+  .controls button:hover { border-color: var(--accent); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; }
+  .card h2 { font-size: 11px; letter-spacing: 2px; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+  .now-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+  .progress { height: 6px; background: #0d1122; border-radius: 999px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--grad); width: 0%; transition: width 1s linear; }
+  .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .next-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(42,51,82,.4); font-size: 13px; }
+  .next-item:last-child { border-bottom: none; }
+  .next-item .when { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+  footer { text-align: center; color: var(--muted); font-size: 11px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  .hint { color: var(--muted); font-size: 14px; line-height: 1.7; }
+  .hint code { background: var(--panel2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 6px; font-size: 13px; }
+  @media (max-width: 900px) { .app-container { flex-direction: column; } .sidebar { width: 100%; } }
+</style>
+</head>
+<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
+<div class="app-container">
+  <div class="sidebar">
+    <h2>МОИ КАНАЛЫ</h2>
+    <div class="channel-list" id="channel-list"></div>
+  </div>
+
+  <div class="main-content">
+    <header>
+      <div class="header-left">
+        <div class="brand-logo" id="header-brand">Мои каналы</div>
+        <span class="live-badge"><span class="live-dot"></span>ПРЯМОЙ ЭФИР</span>
+      </div>
+      <div class="live-clock"><div class="time" id="clock">--:--</div><div class="date" id="date"></div></div>
+    </header>
+
+    <div class="tv">
+      <div class="screen">
+        <div class="screen-guard" id="screen-guard"></div>
+        <div class="video-container"><div id="player"></div></div>
+        <div class="off-air" id="unmute-overlay">
+          <div style="font-size:18px;font-weight:700;" id="overlay-title">Мои каналы</div>
+          <button class="power-btn" onclick="startTV()">▶ Включить эфир</button>
+        </div>
+      </div>
+      <div class="tv-bar">
+        <div style="font-size:13px;color:var(--muted);" id="channel-footer-name">Телеканал</div>
+        <div class="controls"><button onclick="toggleMute()" id="mute-btn">🔇 Звук</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>СЕЙЧАС В ЭФИРЕ</h2>
+      <div class="now-title" id="now-title">—</div>
+      <div class="progress"><div id="prog"></div></div>
+      <div class="times"><span id="elapsed">00:00</span><span id="remain">осталось --:--</span></div>
+    </div>
+
+    <div class="card">
+      <h2>ДАЛЕЕ В ЭФИРЕ</h2>
+      <div id="next-list"></div>
+    </div>
+
+    <footer><a href="index.html">← На главный пульт</a> · TV 24/7</footer>
+  </div>
+</div>
+<div id="hidden" style="position:absolute;width:2px;height:2px;overflow:hidden;opacity:0;pointer-events:none;"></div>
+
+<script src="channels.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const START_TS = Date.UTC(2026, 0, 1) / 1000;
+const FALLBACK = 600; // если длительность ещё неизвестна
+const CACHE_KEY = 'tv_dur_cache_v1';
+
+function loadCache() { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch (e) { return {}; } }
+function saveCache(c) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch (e) {} }
+let cache = loadCache();
+
+let channels = (typeof MY_CHANNELS !== 'undefined' ? MY_CHANNELS : []).map(function (ch) {
+  const items = [];
+  (ch.urls || []).forEach(function (u) {
+    const m = String(u).match(/(?:youtu\.be\/|[?&]v=|shorts\/|embed\/)([\w-]{11})/);
+    if (m) items.push({ id: m[1] });
+  });
+  return { name: ch.name || 'Без названия', logo: ch.logo || '', items: items };
+});
+
+let cur = 0, muted = true, started = false, shownIdx = -1;
+
+function fmt(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(s).padStart(2, '0');
+}
+
+function schedule() {
+  const ch = channels[cur];
+  const durs = ch.items.map(function (it) { return cache[it.id] || FALLBACK; });
+  const total = durs.reduce(function (a, b) { return a + b; }, 0);
+  let pos = ((Date.now() / 1000) - START_TS) % total;
+  let idx = 0;
+  while (pos >= durs[idx]) { pos -= durs[idx]; idx = (idx + 1) % durs.length; }
+  return { idx: idx, pos: pos, durs: durs, total: total };
+}
+
+function setPlayer(id, startSec, withSound) {
+  document.getElementById('player').innerHTML =
+    '<iframe src="https://www.youtube.com/embed/' + id + '?autoplay=1&mute=' + (withSound ? 0 : 1) +
+    '&start=' + Math.floor(startSec) + '&controls=0&rel=0&playsinline=1" ' +
+    'allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+}
+
+function showOverlay() {
+  document.getElementById('unmute-overlay').style.display = 'flex';
+  document.getElementById('player').innerHTML = '';
+}
+
+function startTV() {
+  started = true;
+  document.getElementById('unmute-overlay').style.display = 'none';
+  const st = schedule();
+  setPlayer(channels[cur].items[st.idx].id, st.pos, !muted);
+}
+
+function toggleMute() {
+  muted = !muted;
+  document.getElementById('mute-btn').textContent = muted ? '🔇 Звук' : '🔊 Звук';
+  if (started) {
+    const st = schedule();
+    setPlayer(channels[cur].items[st.idx].id, st.pos, !muted);
+  }
+}
+
+function renderList() {
+  const box = document.getElementById('channel-list');
+  box.innerHTML = '';
+  channels.forEach(function (ch, i) {
+    const b = document.createElement('button');
+    b.className = 'channel-btn' + (i === cur ? ' active' : '');
+    b.innerHTML = '<span>' + ch.name + '</span><span class="channel-num">' + ch.items.length + '</span>';
+    b.onclick = function () { selectChannel(i); };
+    box.appendChild(b);
+  });
+}
+
+function selectChannel(i) {
+  cur = i; started = false; shownIdx = -1;
+  showOverlay();
+  document.getElementById('header-brand').textContent = channels[i].name;
+  document.getElementById('overlay-title').textContent = channels[i].name;
+  document.getElementById('channel-footer-name').textContent = channels[i].name;
+  renderList();
+  render();
+  enqueueDurations(i);
+}
+
+function render() {
+  if (!channels.length) return;
+  const ch = channels[cur];
+  if (!ch.items.length) return;
+  const st = schedule();
+
+  if (started && st.idx !== shownIdx) {
+    shownIdx = st.idx;
+    setPlayer(ch.items[st.idx].id, st.pos, !muted);
+  }
+
+  document.getElementById('now-title').textContent = 'Серия ' + (st.idx + 1) + ' из ' + ch.items.length;
+  const known = cache[ch.items[st.idx].id];
+  document.getElementById('prog').style.width = known ? (st.pos / known * 100).toFixed(2) + '%' : '0%';
+  document.getElementById('elapsed').textContent = fmt(st.pos);
+  document.getElementById('remain').textContent = 'осталось ' + (known ? fmt(known - st.pos) : '--:--');
+
+  const next = document.getElementById('next-list');
+  next.innerHTML = '';
+  let t = (Date.now() / 1000 - START_TS) % st.total - st.pos;
+  for (let k = 1; k <= 5; k++) {
+    const j = (st.idx + k) % ch.items.length;
+    const row = document.createElement('div');
+    row.className = 'next-item';
+    const knownJ = cache[ch.items[j].id];
+    const when = knownJ ? fmt(t) : 'далее';
+    row.innerHTML = '<span>Серия ' + (j + 1) + '</span><span class="when">' + when + '</span>';
+    next.appendChild(row);
+    t += knownJ || FALLBACK;
+  }
+}
+
+// --- последовательное определение длительностей через YouTube IFrame API ---
+let apiReady = false;
+const queue = [];
+window.onYouTubeIframeAPIReady = function () { apiReady = true; pump(); };
+
+function enqueueDurations(chIdx) {
+  channels[chIdx].items.forEach(function (it) {
+    if (!cache[it.id]) queue.push({ id: it.id });
+  });
+  pump();
+}
+
+function pump() {
+  if (!apiReady || !queue.length) return;
+  const job = queue[0];
+  new YT.Player('hidden', {
+    videoId: job.id,
+    events: {
+      onReady: function (e) {
+        const d = Math.round(e.target.getDuration());
+        if (d > 0) { cache[job.id] = d; saveCache(cache); }
+        queue.shift();
+        try { e.target.destroy(); } catch (err) {}
+        render(); pump();
+      },
+      onError: function () { queue.shift(); pump(); }
+    }
+  });
+}
+
+// --- часы ---
+function tickClock() {
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('date').textContent = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+}
+setInterval(tickClock, 1000); tickClock();
+
+if (!channels.length) {
+  document.querySelector('.main-content').innerHTML =
+    '<div class="card"><h2>ПОКА ПУСТО</h2><div class="hint">' +
+    'Каналов пока нет. Откройте файл <code>channels.js</code> (на GitHub: карандашик рядом с файлом), ' +
+    'добавьте канал по образцу из комментариев и нажмите Commit changes. ' +
+    'Через минуту канал появится здесь и начнёт вещать 24/7.' +
+    '</div></div>';
+  document.getElementById('unmute-overlay').style.display = 'none';
+} else {
+  renderList();
+  selectChannel(0);
+  setInterval(render, 1000);
+}
+</script>
+</body>
+</html>
