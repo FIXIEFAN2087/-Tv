@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV — 24/7</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  :root {
+    --bg: #0b0e18; --panel: #141a2c; --panel2: #1a2138; --border: #2a3352;
+    --text: #e8ecf7; --muted: #8a93b2; --accent: #ff007f; --green: #39e75f;
+    --grad: linear-gradient(90deg, #ff007f, #7928ca);
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  .app-container { display: flex; max-width: 1400px; margin: 0 auto; min-height: 100vh; padding: 20px; gap: 20px; }
+  
+  .sidebar { width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; height: fit-content; }
+  .sidebar h2 { font-size: 13px; letter-spacing: 2px; color: var(--muted); font-weight: 700; }
+  .channel-list { display: flex; flex-direction: column; gap: 8px; }
+  .channel-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 14px; border-radius: 12px; cursor: pointer; text-align: left; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; transition: .15s; }
+  .channel-btn:hover { border-color: var(--accent); }
+  .channel-btn.active { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 4px 15px rgba(255,0,127,0.4); }
+  .channel-num { font-size: 11px; opacity: 0.7; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 6px; }
+
+  .main-content { flex: 1; display: flex; flex-direction: column; gap: 16px; max-width: 1000px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .brand-logo { font-size: 24px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; }
+  .live-clock { text-align: right; }
+  .live-clock .time { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .live-clock .date { color: var(--muted); font-size: 12px; }
+  .live-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(57,231,95,.1); border: 1px solid rgba(57,231,95,.4); color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 999px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+  .tv { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+  .screen { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 16/9; width: 100%; }
+  
+  .screen-guard { position: absolute; inset: 0; z-index: 5; pointer-events: auto; }
+  .video-container { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .video-container iframe { width: 100%; height: 100%; border: 0; }
+
+  .live-watermark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  .live-watermark img { width: 100%; height: 100%; object-fit: fill; display: block; opacity: 0; transition: opacity 0.5s ease; }
+  .live-watermark img.visible { opacity: 1; }
+
+  .off-air { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #000; z-index: 20; text-align: center; gap: 14px; }
+  .power-btn { background: var(--grad); color: #fff; border: none; font-weight: 800; font-size: 16px; padding: 14px 28px; border-radius: 999px; cursor: pointer; box-shadow: 0 8px 24px rgba(255,0,127,.6); transition: transform .15s; }
+  .power-btn:hover { transform: translateY(-2px); }
+  
+  .tv-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 2px; }
+  .controls button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 0 16px; height: 38px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: .15s; }
+  .controls button:hover { border-color: var(--accent); }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; }
+  .card h2 { font-size: 11px; letter-spacing: 2px; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+  .now-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+  .progress { height: 6px; background: #0d1122; border-radius: 999px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--grad); width: 0%; transition: width 1s linear; }
+  .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  .next-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(42,51,82,.4); font-size: 13px; }
+  .next-item:last-child { border-bottom: none; }
+  .next-item .when { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  footer { text-align: center; color: var(--muted); font-size: 11px; }
+
+  @media (max-width: 900px) { .app-container { flex-direction: column; } .sidebar { width: 100%; } }
+</style>
+</head>
+<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
+<div class="app-container">
+  <div class="sidebar">
+    <h2>ПЛЕЙЛИСТ</h2>
+    <div class="channel-list" id="channel-list"></div>
+  </div>
+
+  <div class="main-content">
+    <header>
+      <div class="header-left">
+        <div class="brand-logo" id="header-brand">СмешТВ</div>
+        <span class="live-badge"><span class="live-dot"></span>ПРЯМОЙ ЭФИР</span>
+      </div>
+      <div class="live-clock"><div class="time" id="clock">--:--</div><div class="date" id="date"></div></div>
+    </header>
+
+    <div class="tv">
+      <div class="screen">
+        <div class="screen-guard" id="screen-guard"></div>
+        <div class="live-watermark"><img id="watermark-logo-img" alt="Логотип"></div>
+        <div class="video-container"><div id="player"></div></div>
+        
+        <div class="off-air" id="unmute-overlay">
+          <div style="font-size:18px;font-weight:700;" id="overlay-title">Телеканал</div>
+          <button class="power-btn" onclick="startTV()">▶ Включить эфир</button>
+        </div>
+      </div>
+
+      <div class="tv-bar">
+        <div style="font-size:13px;color:var(--muted);" id="channel-footer-name">Телеканал</div>
+        <div class="controls"><button onclick="toggleMute()" id="mute-btn">🔇 Звук</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>СЕЙЧАС В ЭФИРЕ</h2>
+      <div class="now-title" id="now-title">Загрузка…</div>
+      <div class="progress"><div id="prog"></div></div>
+      <div class="times"><span id="elapsed">00:00</span><span id="remain">осталось --:--</span></div>
+    </div>
+
+    <div class="card">
+      <h2>ДАЛЕЕ В ЭФИРЕ</h2>
+      <div id="next-list"></div>
+    </div>
+
+    <footer>TV 24/7</footer>
+  </div>
+</div>
+
+<script>
+function parseDuration(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const p = String(val).split(':').map(Number);
+  return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p.length === 2 ? p[0]*60 + p[1] : Number(val) || 0;
+}
+
+// ПОЛНАЯ ТЕЛЕПРОГРАММА СО ВСЕМИ СЕРИЯМИ
+const RAW_CHANNELS = [
+  {
+    name: "Фиксиктэр",
+    logo: "https://lh3.googleusercontent.com/d/1qxscfiRDbaOHuyDoZDyd07cqCBz2Ud0q",
+    schedule: [
+      { id: 'w4EjOyu0Ws8', duration: 352, title: 'Фиксиктэр №1' },
+      { id: 'YTqXGEIJ03Q', duration: 362, title: 'Фиксиктэр №2' },
+      { id: 'j2rfmnWx8t0', duration: 358, title: 'Фиксиктэр №3' },
+      { id: '1lKhSt8UgNw', duration: 364, title: 'Фиксиктэр №4' },
+      { id: '1E5YmQy2lzE', duration: 365, title: 'Фиксиктэр №5' },
+      { id: 'bIpS9kvq9UI', duration: 364, title: 'Фиксиктэр №6' },
+      { id: 'Au6zaEpLm0k', duration: 365, title: 'Фиксиктэр №7' },
+      { id: '9nnICw9bFjE', duration: 360, title: 'Фиксиктэр №8' },
+      { id: 'cyocEgKcEdM', duration: 361, title: 'Фиксиктэр №9' },
+      { id: 'krEENG73t2k', duration: 362, title: 'Фиксиктэр №10' },
+      { id: 'HPGYo9gBnTI', duration: 357, title: 'Фиксиктэр №11' },
+      { id: 'TF8sscuMcOA', duration: 358, title: 'Фиксиктэр №12' },
+      { id: 'w5HxhwyCoh4', duration: 359, title: 'Фиксиктэр №13' },
+      { id: 'LWTdH5_vqfc', duration: 361, title: 'Фиксиктэр №14' },
+      { id: '5vPBfb-aTQA', duration: 358, title: 'Фиксиктэр №15' },
+      { id: 'WlsARFM2-y4', duration: 361, title: 'Фиксиктэр №16' },
+      { id: '_KHMJRNsyXs', duration: 365, title: 'Фиксиктэр №17' },
+      { id: '4yEQ-y__M7k', duration: 363, title: 'Фиксиктэр №18' },
+      { id: 'XmIuQxUr4nk', duration: 361, title: 'Фиксиктэр №19' },
+      { id: 'EGXtMlAgSTI', duration: 359, title: 'Фиксиктэр №20' },
+      { id: 'lXcn2rXisVo', duration: 363, title: 'Фиксиктэр №21' },
+      { id: '1OB-TDnHau4', duration: 360, title: 'Фиксиктэр №22' },
+      { id: 'okrJtaxAwdU', duration: 358, title: 'Фиксиктэр №23' },
+      { id: 'DnumF1v1j4I', duration: 369, title: 'Фиксиктэр №24' },
+      { id: 'BPZ6mXwm3i4', duration: 367, title: 'Фиксиктэр №25' },
+      { id: 'ULWSSo8pDZQ', duration: 367, title: 'Фиксиктэр №26' },
+      { id: 'dpet2xbwwJ8', duration: 360, title: 'Фиксиктэр №27' },
+      { id: 'gt9ixdkErNU', duration: 358, title: 'Фиксиктэр №28' },
+      { id: 'xv2hoDawJRU', duration: 370, title: 'Фиксиктэр №29' },
+      { id: 'peoNlHwfLwU', duration: 357, title: 'Фиксиктэр №30' },
+      { id: 'XFhlZQ3yV0k', duration: 365, title: 'Фиксиктэр №31' },
+      { id: 'Vd75mfKKXBQ', duration: 355, title: 'Фиксиктэр №32' },
+      { id: 'TQ7tAqN7wOs', duration: 364, title: 'Фиксиктэр №33' },
+      { id: 'DvbLFR_6EDs', duration: 370, title: 'Фиксиктэр №34' },
+      { id: '8qjoEBUG2Yg', duration: 363, title: 'Фиксиктэр №35' },
+      { id: 'PFudTCBiyEw', duration: 366, title: 'Фиксиктэр №36' },
+      { id: 'pFRvgdEJtpA', duration: 364, title: 'Фиксиктэр №37' },
+      { id: 'i-v7LgFST-g', duration: 366, title: 'Фиксиктэр №38' },
+      { id: 'BJfhPyr8dvs', duration: 364, title: 'Фиксиктэр №39' },
+      { id: 'cEPbO-JztOw', duration: 361, title: 'Фиксиктэр №40' },
+      { id: 'QYMnGqGUWAk', duration: 365, title: 'Фиксиктэр №41' },
+      { id: '2Di7KeGyjjQ', duration: 365, title: 'Фиксиктэр №42' },
+      { id: 'hD91WYAmVLg', duration: 361, title: 'Фиксиктэр №43' },
+      { id: 'z8YJL9e7Bgc', duration: 367, title: 'Фиксиктэр №44' },
+      { id: 'qoJECDeJ20w', duration: 368, title: 'Фиксиктэр №45' },
+      { id: '7-UX4yi2Zaw', duration: 363, title: 'Фиксиктэр №46' },
+      { id: '9fRiokKlTGk', duration: 363, title: 'Фиксиктэр №47' },
+      { id: 'HXVe5O_y8Dk', duration: 364, title: 'Фиксиктэр №48' },
+      { id: 'GnqQCnKMOgY', duration: 364, title: 'Фиксиктэр №49' },
+      { id: 'RnhUHbXZV6o', duration: 360, title: 'Фиксиктэр №50' },
+      { id: 'vt4ohZsuy4o', duration: 364, title: 'Фиксиктэр №51' },
+      { id: 'y6B0r91Ko04', duration: 369, title: 'Фиксиктэр №52' },
+      { id: 'tHU7HZbi6hg', duration: 374, title: 'Фиксиктэр №53' },
+      { id: 'VBBdrS8iiYA', duration: 360, title: 'Фиксиктэр №54' },
+      { id: '9PPY6ylAsMg', duration: 365, title: 'Фиксиктэр №55' },
+      { id: 'kA-20Fr0kak', duration: 367, title: 'Фиксиктэр №56' },
+      { id: 'PIMZ9mu3pWw', duration: 364, title: 'Фиксиктэр №57' },
+      { id: 'ntyiiRNdAB4', duration: 362, title: 'Фиксиктэр №58' },
+      { id: '4cDSW3vonFI', duration: 370, title: 'Фиксиктэр №59' },
+      { id: 'Jd4cT-9tMu8', duration: 364, title: 'Фиксиктэр №60' },
+      { id: 'HGlKMIeTaaI', duration: 364, title: 'Фиксиктэр №61' },
+      { id: 'KcJfs1WxemA', duration: 364, title: 'Фиксиктэр №62' },
+      { id: 'S5jG3QSL718', duration: 369, title: 'Фиксиктэр №63' },
+      { id: '7syhJBrArng', duration: 365, title: 'Фиксиктэр №64' },
+      { id: 'vBQiqaL23jE', duration: 367, title: 'Фиксиктэр №65' },
+      { id: 'aBedzIRylY4', duration: 364, title: 'Фиксиктэр №66' },
+      { id: 'mQzU37ZLWaE', duration: 365, title: 'Фиксиктэр №67' },
+      { id: 'B0GT25fRwZc', duration: 364, title: 'Фиксиктэр №68' },
+      { id: '8bcNpKW6_3A', duration: 364, title: 'Фиксиктэр №69' },
+      { id: 'ZoeLcV0vzQY', duration: 362, title: 'Фиксиктэр №70' },
+      { id: 'OGleu2_guL4', duration: 362, title: 'Фиксиктэр №71' },
+      { id: 'PaDFa6P3q6g', duration: 363, title: 'Фиксиктэр №72' },
+      { id: 'Km2y539Q9Jc', duration: 365, title: 'Фиксиктэр №73' },
+      { id: 'WuFrIy7rRcA', duration: 364, title: 'Фиксиктэр №74' },
+      { id: 's1Hs3pUZ2gA', duration: 364, title: 'Фиксиктэр №75' },
+      { id: '1w_MXpgIa5E', duration: 365, title: 'Фиксиктэр №76' },
+      { id: 'ildNKaVDheg', duration: 363, title: 'Фиксиктэр №77' },
+      { id: 'Zd9_JyORVLk', duration: 366, title: 'Фиксиктэр №78' },
+      { id: 'GqEyH54B30k', duration: 364, title: 'Фиксиктэр №79' },
+      { id: 'V0T1Z7GbCIg', duration: 362, title: 'Фиксиктэр №80' },
+      { id: 'U6dTJhqKBCU', duration: 363, title: 'Фиксиктэр №81' },
+      { id: 'cxMLeMCUXRI', duration: 363, title: 'Фиксиктэр №82' },
+      { id: 'pC_jH--oGTM', duration: 365, title: 'Фиксиктэр №83' },
+      { id: 'vm2aKO8hmGE', duration: 368, title: 'Фиксиктэр №84' },
+      { id: 'DQckCou1f4o', duration: 366, title: 'Фиксиктэр №85' },
+      { id: 'eSMwkjEZrIk', duration: 366, title: 'Фиксиктэр №86' },
+      { id: 'DZRgIfbVzkw', duration: 360, title: 'Фиксиктэр №87' },
+      { id: 'BIzJPM1sCQw', duration: 366, title: 'Фиксиктэр №88' },
+      { id: 'KKhCKA10CGU', duration: 368, title: 'Фиксиктэр №89' },
+      { id: 'weASWdtym3E', duration: 368, title: 'Фиксиктэр №90' },
+      { id: 'fBs1PsDNxtc', duration: 361, title: 'Фиксиктэр №91' },
+      { id: 'nNwPOqOUhnQ', duration: 365, title: 'Фиксиктэр №92' },
+      { id: '2yqjXPg45ds', duration: 359, title: 'Фиксиктэр №93' },
+      { id: 'bFJVyQAUswk', duration: 361, title: 'Фиксиктэр №94' },
+      { id: '4ikNH2zxEsI', duration: 359, title: 'Фиксиктэр №95' },
+      { id: 'J6P8OFHf5Zg', duration: 365, title: 'Фиксиктэр №96' },
+      { id: 'anIUmyf24jI', duration: 361, title: 'Фиксиктэр №97' },
+      { id: 'F4LHIVvtHjA', duration: 360, title: 'Фиксиктэр №98' },
+      { id: 'HCAjjBus0yg', duration: 360, title: 'Фиксиктэр №99' },
+      { id: 'UVlAuJ_Bc2E', duration: 366, title: 'Фиксиктэр №100' },
+      { id: 'ipfFyjA8cus', duration: 369, title: 'Фиксиктэр №101' },
+      { id: 'JHzMoo6kz0Y', duration: 362, title: 'Фиксиктэр №102' },
+      { id: 'cHZFP-Lg66Y', duration: 360, title: 'Фиксиктэр №103' },
+      { id: 'p8u1WhnmhjI', duration: 364, title: 'Фиксиктэр №104' },
+      { id: 'ytYxBC6CIh4', duration: 364, title: 'Фиксиктэр №105' },
+      { id: 't21rT6Cw9nw', duration: 361, title: 'Фиксиктэр №106' },
+      { id: 'XbRu-g5VpMo', duration: 363, title: 'Фиксиктэр №107' },
+      { id: '2Qb-9w3Fgvo', duration: 371, title: 'Фиксиктэр №108' },
+      { id: '0CBm7aUceXo', duration: 360, title: 'Фиксиктэр №109' },
+      { id: 'H9h8kUtabFo', duration: 361, title: 'Фиксиктэр №110' },
+      { id: 'oQp8Mc4LvSk', duration: 362, title: 'Фиксиктэр №111' },
+      { id: '3KDKmKpblHo', duration: 360, title: 'Фиксиктэр №112' },
+      { id: 'Y49elioLIds', duration: 368, title: 'Фиксиктэр №113' },
+      { id: '9la0OroYmII', duration: 369, title: 'Фиксиктэр №114' },
+      { id: '7teq7Pq0ob0', duration: 362, title: 'Фиксиктэр №115' },
+      { id: 'J8CfdSp0pY8', duration: 371, title: 'Фиксиктэр №116' },
+      { id: '42wRE6FECCE', duration: 368, title: 'Фиксиктэр №117' },
+      { id: 'QpoLK2Xj1mM', duration: 367, title: 'Фиксиктэр №118' },
+      { id: 'QR-hwvWGmag', duration: 371, title: 'Фиксиктэр №119' },
+      { id: 'EseQU4CrTgs', duration: 371, title: 'Фиксиктэр №120' },
+      { id: 'hwFSwrvO480', duration: 365, title: 'Фиксиктэр №121' },
+      { id: 'l6nlLvn35zQ', duration: 364, title: 'Фиксиктэр №122' },
+      { id: 'fkO5RMzxGlg', duration: 368, title: 'Фиксиктэр №123' },
+      { id: 'B__qLSg1Pak', duration: 363, title: 'Фиксиктэр №124' },
+      { id: 'nZwmB93mQYs', duration: 367, title: 'Фиксиктэр №125' },
+      { id: '7LfhDJtufwU', duration: 367, title: 'Фиксиктэр №126' },
+      { id: 'JnaOwK-L_fs', duration: 368, title: 'Фиксиктэр №127' },
+      { id: 'Ou7dAwMDjRY', duration: 361, title: 'Фиксиктэр №128' },
+      { id: 'HqfCqV2wocA', duration: 364, title: 'Фиксиктэр №129' },
+      { id: 'fpjg_A-5s7E', duration: 363, title: 'Фиксиктэр №130' },
+      { id: 'pNrrkHx9OSM', duration: 372, title: 'Фиксиктэр №131' },
+      { id: 'U4mYAJ2o0Ac', duration: 367, title: 'Фиксиктэр №132' },
+      { id: '_PxIQxnliWQ', duration: 370, title: 'Фиксиктэр №133' },
+      { id: 'cqSghUmtPWM', duration: 365, title: 'Фиксиктэр №134' },
+      { id: '0hSnoAHDp0s', duration: 372, title: 'Фиксиктэр №135' },
+      { id: 'hBNrjxgdQVk', duration: 360, title: 'Фиксиктэр №136' },
+      { id: 'N_diYnAT3xM', duration: 362, title: 'Фиксиктэр №137' },
+      { id: 'rV4sYVAgEcE', duration: 365, title: 'Фиксиктэр №138' },
+      { id: 'kxxXnfvk9zE', duration: 366, title: 'Фиксиктэр №139' },
+      { id: 'DmOaU8KrLxU', duration: 365, title: 'Фиксиктэр №140' },
+      { id: '-Nme1Yi7n7o', duration: 368, title: 'Фиксиктэр №141' },
+      { id: 'modVFF19Gf8', duration: 362, title: 'Фиксиктэр №142' },
+      { id: 'PCUTZ8rxNMo', duration: 370, title: 'Фиксиктэр №143' },
+      { id: 'ElGD0QaZjbc', duration: 364, title: 'Фиксиктэр №144' },
+      { id: '-8FLBhUVaHs', duration: 364, title: 'Фиксиктэр №145' },
+      { id: 'EJVTFoUxu-c', duration: 361, title: 'Фиксиктэр №146' },
+      { id: 'UzdFKWtFPDM', duration: 365, title: 'Фиксиктэр №147' },
+      { id: 'udiwi2VZ9qI', duration: 363, title: 'Фиксиктэр №148' },
+      { id: 'Y5ut_kw6kno', duration: 360, title: 'Фиксиктэр №149' },
+      { id: 'OzH13ZOg8Ck', duration: 361, title: 'Фиксиктэр №150' },
+      { id: 'GLdIHXpRAvs', duration: 364, title: 'Фиксиктэр №151' },
+      { id: 'UfyXeTCIfIU', duration: 365, title: 'Фиксиктэр №152' },
+      { id: '0esh_NS-FWw', duration: 361, title: 'Фиксиктэр №153' },
+      { id: 'VmU8zMwmZjE', duration: 365, title: 'Фиксиктэр №154' },
+      { id: 'vM3wu7VuvAY', duration: 363, title: 'Фиксиктэр №155' },
+      { id: 'kfIt2mZdHvw', duration: 360, title: 'Фиксиктэр №156' },
+      { id: '2QPKqP9nHqI', duration: 363, title: 'Фиксиктэр №157' },ъ
+    ]
+  }];
+
+const CHANNELS = RAW_CHANNELS.map(c => ({
+  ...c, schedule: c.schedule.map(i => ({ ...i, duration: parseDuration(i.duration) }))
+}));
+
+let curChan = 0, player = null, muted = true, curIdx = -1;
+
+function renderList() {
+  const list = document.getElementById('channel-list');
+  list.innerHTML = CHANNELS.map((c, i) => `
+    <button class="channel-btn ${i === curChan ? 'active' : ''}" onclick="switchChan(${i})">
+      <span class="name">${i + 1}. ${c.name}</span><span class="channel-num">LIVE</span>
+    </button>`).join('');
+}
+
+function getPos(sched) {
+  const total = sched.reduce((a, x) => a + x.duration, 0);
+  let t = Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 1000) % total;
+  if (t < 0) t += total;
+  let acc = 0;
+  for (let i = 0; i < sched.length; i++) {
+    if (t < acc + sched[i].duration) return { idx: i, start: t - acc };
+    acc += sched[i].duration;
+  }
+  return { idx: 0, start: 0 };
+}
+
+function updateUI() {
+  const c = CHANNELS[curChan];
+  document.getElementById('watermark-logo-img').src = c.logo;
+  document.getElementById('header-brand').innerText = c.name;
+  document.getElementById('channel-footer-name').innerText = `Телеканал «${c.name}»`;
+  document.getElementById('overlay-title').innerText = `Телеканал «${c.name}»`;
+}
+
+function switchChan(i) {
+  curChan = i; curIdx = -1;
+  renderList(); updateUI();
+  const pos = getPos(CHANNELS[curChan].schedule);
+  curIdx = pos.idx;
+  
+  // Установка названия при смене канала
+  document.getElementById('now-title').innerText = CHANNELS[curChan].schedule[pos.idx].title;
+
+  if (player?.loadVideoById) {
+    player.loadVideoById({ videoId: CHANNELS[curChan].schedule[pos.idx].id, startSeconds: pos.start });
+  }
+}
+
+// Загрузка YT API
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+function onYouTubeIframeAPIReady() {
+  renderList(); updateUI();
+  const pos = getPos(CHANNELS[curChan].schedule);
+  curIdx = pos.idx;
+  
+  // Установка названия при старте
+  document.getElementById('now-title').innerText = CHANNELS[curChan].schedule[pos.idx].title;
+
+  player = new YT.Player('player', {
+    videoId: CHANNELS[curChan].schedule[pos.idx].id,
+    playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, start: Math.floor(pos.start) },
+    events: { onReady: e => { e.target.mute(); e.target.playVideo(); setInterval(tick, 1000); } }
+  });
+}
+
+function startTV() {
+  player?.unMute();
+  player?.setVolume(100);
+  muted = false;
+  document.getElementById('mute-btn').innerText = '🔊 Звук';
+  document.getElementById('unmute-overlay').style.display = 'none';
+  document.getElementById('watermark-logo-img').classList.add('visible');
+}
+
+function toggleMute() {
+  if (!player) return;
+  muted = !muted;
+  muted ? player.mute() : player.unMute();
+  document.getElementById('mute-btn').innerText = muted ? '🔇 Звук' : '🔊 Звук';
+}
+
+function fmt(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+}
+
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').innerText = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('date').innerText = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+  const c = CHANNELS[curChan];
+  const pos = getPos(c.schedule);
+  const item = c.schedule[pos.idx];
+  let curTime = player?.getCurrentTime ? player.getCurrentTime() : pos.start;
+  if (isNaN(curTime)) curTime = pos.start;
+
+  if (curIdx !== pos.idx) {
+    curIdx = pos.idx;
+    player?.loadVideoById?.({ videoId: item.id, startSeconds: pos.start });
+    document.getElementById('now-title').innerText = item.title;
+  }
+
+  document.getElementById('prog').style.width = Math.min(100, (curTime / item.duration) * 100) + '%';
+  document.getElementById('elapsed').innerText = fmt(curTime);
+  document.getElementById('remain').innerText = 'осталось ' + fmt(item.duration - curTime);
+
+  // Рендер блока "Далее"
+  let html = '';
+  for (let i = 1; i <= 3; i++) {
+    const nextItem = c.schedule[(pos.idx + i) % c.schedule.length];
+    let calc = (i === 1 ? item.duration - curTime : c.schedule[(pos.idx + i - 1) % c.schedule.length].duration);
+    const targetDate = new Date(Date.now() + calc * 1000);
+    html += `<div class="next-item"><span>${nextItem.title}</span><span class="when">~${String(targetDate.getHours()).padStart(2,'0')}:${String(targetDate.getMinutes()).padStart(2,'0')}</span></div>`;
+  }
+  document.getElementById('next-list').innerHTML = html;
+}
+</script>
+</body>
+</html>
