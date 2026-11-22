@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV — 24/7</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  :root {
+    --bg: #0b0e18; --panel: #141a2c; --panel2: #1a2138; --border: #2a3352;
+    --text: #e8ecf7; --muted: #8a93b2; --accent: #ff007f; --green: #39e75f;
+    --grad: linear-gradient(90deg, #ff007f, #7928ca);
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  .app-container { display: flex; max-width: 1400px; margin: 0 auto; min-height: 100vh; padding: 20px; gap: 20px; }
+  
+  .sidebar { width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; height: fit-content; }
+  .sidebar h2 { font-size: 13px; letter-spacing: 2px; color: var(--muted); font-weight: 700; }
+  .channel-list { display: flex; flex-direction: column; gap: 8px; }
+  .channel-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 14px; border-radius: 12px; cursor: pointer; text-align: left; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; transition: .15s; }
+  .channel-btn:hover { border-color: var(--accent); }
+  .channel-btn.active { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 4px 15px rgba(255,0,127,0.4); }
+  .channel-num { font-size: 11px; opacity: 0.7; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 6px; }
+
+  .main-content { flex: 1; display: flex; flex-direction: column; gap: 16px; max-width: 1000px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .brand-logo { font-size: 24px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; }
+  .live-clock { text-align: right; }
+  .live-clock .time { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .live-clock .date { color: var(--muted); font-size: 12px; }
+  .live-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(57,231,95,.1); border: 1px solid rgba(57,231,95,.4); color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 999px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+  .tv { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+  .screen { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 16/9; width: 100%; }
+  
+  .screen-guard { position: absolute; inset: 0; z-index: 5; pointer-events: auto; }
+  .video-container { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .video-container iframe { width: 100%; height: 100%; border: 0; }
+
+  .live-watermark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  .live-watermark img { width: 100%; height: 100%; object-fit: fill; display: block; opacity: 0; transition: opacity 0.5s ease; }
+  .live-watermark img.visible { opacity: 1; }
+
+  .off-air { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #000; z-index: 20; text-align: center; gap: 14px; }
+  .power-btn { background: var(--grad); color: #fff; border: none; font-weight: 800; font-size: 16px; padding: 14px 28px; border-radius: 999px; cursor: pointer; box-shadow: 0 8px 24px rgba(255,0,127,.6); transition: transform .15s; }
+  .power-btn:hover { transform: translateY(-2px); }
+  
+  .tv-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 2px; }
+  .controls button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 0 16px; height: 38px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: .15s; }
+  .controls button:hover { border-color: var(--accent); }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; }
+  .card h2 { font-size: 11px; letter-spacing: 2px; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+  .now-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+  .progress { height: 6px; background: #0d1122; border-radius: 999px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--grad); width: 0%; transition: width 1s linear; }
+  .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  .next-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(42,51,82,.4); font-size: 13px; }
+  .next-item:last-child { border-bottom: none; }
+  .next-item .when { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  footer { text-align: center; color: var(--muted); font-size: 11px; }
+
+  @media (max-width: 900px) { .app-container { flex-direction: column; } .sidebar { width: 100%; } }
+</style>
+</head>
+<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
+<div class="app-container">
+  <div class="sidebar">
+    <h2>ПЛЕЙЛИСТ</h2>
+    <div class="channel-list" id="channel-list"></div>
+  </div>
+
+  <div class="main-content">
+    <header>
+      <div class="header-left">
+        <div class="brand-logo" id="header-brand">СмешТВ</div>
+        <span class="live-badge"><span class="live-dot"></span>ПРЯМОЙ ЭФИР</span>
+      </div>
+      <div class="live-clock"><div class="time" id="clock">--:--</div><div class="date" id="date"></div></div>
+    </header>
+
+    <div class="tv">
+      <div class="screen">
+        <div class="screen-guard" id="screen-guard"></div>
+        <div class="live-watermark"><img id="watermark-logo-img" alt="Логотип"></div>
+        <div class="video-container"><div id="player"></div></div>
+        
+        <div class="off-air" id="unmute-overlay">
+          <div style="font-size:18px;font-weight:700;" id="overlay-title">Телеканал</div>
+          <button class="power-btn" onclick="startTV()">▶ Включить эфир</button>
+        </div>
+      </div>
+
+      <div class="tv-bar">
+        <div style="font-size:13px;color:var(--muted);" id="channel-footer-name">Телеканал</div>
+        <div class="controls"><button onclick="toggleMute()" id="mute-btn">🔇 Звук</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>СЕЙЧАС В ЭФИРЕ</h2>
+      <div class="now-title" id="now-title">Загрузка…</div>
+      <div class="progress"><div id="prog"></div></div>
+      <div class="times"><span id="elapsed">00:00</span><span id="remain">осталось --:--</span></div>
+    </div>
+
+    <div class="card">
+      <h2>ДАЛЕЕ В ЭФИРЕ</h2>
+      <div id="next-list"></div>
+    </div>
+
+    <footer>TV 24/7</footer>
+  </div>
+</div>
+
+<script>
+function parseDuration(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const p = String(val).split(':').map(Number);
+  return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p.length === 2 ? p[0]*60 + p[1] : Number(val) || 0;
+}
+
+// ПОЛНАЯ ТЕЛЕПРОГРАММА СО ВСЕМИ СЕРИЯМИ
+const RAW_CHANNELS = [
+  {
+    name: "تعمیرکاران",
+    logo: "https://lh3.googleusercontent.com/d/1Dgv-fCe7XXyGOCDGpIzRKWPgl-ZDVwDv",
+    schedule: [
+      { id: 'N7FoLH3aWFM', duration: 352, title: 'تعمیرکاران №1' },
+      { id: 'fZIKwtQQRL0', duration: 362, title: 'تعمیرکاران №2' },
+      { id: '389A7UCbfVU', duration: 358, title: 'تعمیرکاران №3' },
+      { id: 'Tv4WbZEGvDU', duration: 364, title: 'تعمیرکاران №4' },
+      { id: 'X7OGcbT4Ges', duration: 365, title: 'تعمیرکاران №5' },
+      { id: 'cbratKflei8', duration: 364, title: 'تعمیرکاران №6' },
+      { id: 'MdDEzVslZx0', duration: 365, title: 'تعمیرکاران №7' },
+      { id: 'HZvQ7Mf7rBI', duration: 360, title: 'تعمیرکاران №8' },
+      { id: 'xq0yhCGLK-g', duration: 361, title: 'تعمیرکاران №9' },
+      { id: 'kdO0BEgljHA', duration: 362, title: 'تعمیرکاران №10' },
+      { id: '5zRyxc9lA5Q', duration: 357, title: 'تعمیرکاران №11' },
+      { id: 'KdjcLxKTyY8', duration: 358, title: 'تعمیرکاران №12' },
+      { id: 'FPWY5DKENWw', duration: 359, title: 'تعمیرکاران №13' },
+      { id: '1GqFuQVIiGo', duration: 361, title: 'تعمیرکاران №14' },
+      { id: 'ApZARTP4px0', duration: 358, title: 'تعمیرکاران №15' },
+      { id: '3OJTWfpVf7U', duration: 361, title: 'تعمیرکاران №16' },
+      { id: 'HvGQBEs7ci0', duration: 365, title: 'تعمیرکاران №17' },
+      { id: '3F3rY46JE5c', duration: 363, title: 'تعمیرکاران №18' },
+      { id: 'bZOh5RufVK8', duration: 361, title: 'تعمیرکاران №19' },
+      { id: 'sUjRm3hXyaY', duration: 359, title: 'تعمیرکاران №20' },
+      { id: '8w8QpYs5I6I', duration: 363, title: 'تعمیرکاران №21' },
+      { id: 'Bk7l4AyNYDA', duration: 360, title: 'تعمیرکاران №22' },
+      { id: '_Vouy6eebyY', duration: 358, title: 'تعمیرکاران №23' },
+      { id: 'fGaomt8hrB4', duration: 369, title: 'تعمیرکاران №24' },
+      { id: 'A3XbCfLY_Ug', duration: 367, title: 'تعمیرکاران №25' },
+      { id: 'xMtduWRas4E', duration: 367, title: 'تعمیرکاران №26' },
+      { id: 'FQ47DrmaBao', duration: 360, title: 'تعمیرکاران №27' },
+      { id: '-Qdk7EbQlOs', duration: 358, title: 'تعمیرکاران №28' },
+      { id: 'trH5YJdgGMw', duration: 370, title: 'تعمیرکاران №29' },
+      { id: 'XKUOcbfJ-ME', duration: 357, title: 'تعمیرکاران №30' },
+      { id: '3t954I79RfI', duration: 365, title: 'تعمیرکاران №31' },
+      { id: '2RimiaJYX8U', duration: 355, title: 'تعمیرکاران №32' },
+      { id: 'dU3MMZrEAAI', duration: 364, title: 'تعمیرکاران №33' },
+      { id: 'Rdk2qqYxl2M', duration: 370, title: 'تعمیرکاران №34' },
+      { id: 'W4U7VChOgXs', duration: 363, title: 'تعمیرکاران №35' },
+      { id: 'KY2lIm43OTg', duration: 366, title: 'تعمیرکاران №36' },
+      { id: 'sFgTlRx7qNc', duration: 364, title: 'تعمیرکاران №37' },
+      { id: 'q0zqbDoYXQk', duration: 366, title: 'تعمیرکاران №38' },
+      { id: '2UuGkbl7qJ8', duration: 364, title: 'تعمیرکاران №39' },
+      { id: 'O8qrHg2mKTQ', duration: 361, title: 'تعمیرکاران №40' },
+      { id: 'zdxP3NAcXCE', duration: 365, title: 'تعمیرکاران №41' },
+      { id: '5x8RpWrv6tk', duration: 365, title: 'تعمیرکاران №42' },
+      { id: 'DHplaEnfH5U', duration: 361, title: 'تعمیرکاران №43' },
+      { id: 'jRUbH25Gqrs', duration: 367, title: 'تعمیرکاران №44' },
+      { id: 'g9y5DqjCrtA', duration: 368, title: 'تعمیرکاران №45' },
+      { id: 'rvJwhfTsUZQ', duration: 363, title: 'تعمیرکاران №46' },
+      { id: 'OcVi-_f8cl8', duration: 363, title: 'تعمیرکاران №47' },
+      { id: '11mZtB1jTws', duration: 364, title: 'تعمیرکاران №48' },
+      { id: 'u3mr5NO51TU', duration: 364, title: 'تعمیرکاران №49' },
+      { id: 'xkcfnPhnfnw', duration: 360, title: 'تعمیرکاران №50' },
+      { id: 'CCkty3uOp0Y', duration: 364, title: 'تعمیرکاران №51' },
+      { id: '3ROIFGIpKyk', duration: 369, title: 'تعمیرکاران №52' },
+      { id: '6wTqAssKEwk', duration: 374, title: 'Фиксики №53' },
+      { id: 'jeerQe8sdbg', duration: 360, title: 'Фиксики №54' },
+      { id: 'B91ZnSAmLig', duration: 365, title: 'Фиксики №55' },
+      { id: '61xLsr5fvj8', duration: 367, title: 'Фиксики №56' },
+      { id: 'gmHBVtSwjPY', duration: 364, title: 'Фиксики №57' },
+      { id: 'BmZUpal1cH0', duration: 362, title: 'Фиксики №58' },
+      { id: 'F3pDmQf0UK0', duration: 370, title: 'Фиксики №59' },
+      { id: 'To5yh3rDuRs', duration: 364, title: 'Фиксики №60' },
+      { id: 'RRAFt4KtPcI', duration: 364, title: 'Фиксики №61' },
+      { id: 'tgqXlApMxvw', duration: 364, title: 'Фиксики №62' },
+      { id: 'PVdLHKWlMaA', duration: 369, title: 'Фиксики №63' },
+      { id: 'De9XOHdzYDg', duration: 365, title: 'Фиксики №64' },
+      { id: '_qzCsu5uzgU', duration: 367, title: 'Фиксики №65' },
+      { id: 'uhOZwk9skYg', duration: 364, title: 'Фиксики №66' },
+      { id: 'M79-vcAsQ6c', duration: 365, title: 'Фиксики №67' },
+      { id: 'IHmwnr-m-M4', duration: 364, title: 'Фиксики №68' },
+      { id: 'FOkSPCb4neI', duration: 364, title: 'Фиксики №69' },
+      { id: 'eirHIUZvsdY', duration: 362, title: 'Фиксики №70' },
+      { id: '4_0q1hwp4Qw', duration: 362, title: 'Фиксики №71' },
+      { id: 'ux2DQ0CxCH4', duration: 363, title: 'Фиксики №72' },
+      { id: 'uYayowNHxTo', duration: 365, title: 'Фиксики №73' },
+      { id: 'ebZ0TG2aKYg', duration: 364, title: 'Фиксики №74' },
+      { id: 'JWebzUd1jb4', duration: 364, title: 'Фиксики №75' },
+      { id: 'c8kU2CVoYI0', duration: 365, title: 'Фиксики №76' },
+      { id: 'CulQrojIDXk', duration: 363, title: 'Фиксики №77' },
+      { id: 'xwMT8sHQoFA', duration: 366, title: 'Фиксики №78' },
+      { id: '2RXe-uWIIgE', duration: 364, title: 'Фиксики №79' },
+      { id: '67P_z5_C-Hc', duration: 362, title: 'Фиксики №80' },
+      { id: 'jyt7Le_IPOs', duration: 363, title: 'Фиксики №81' },
+      { id: 'gsXwqOOdYqg', duration: 363, title: 'Фиксики №82' },
+      { id: 'jUKTJ3Npc54', duration: 365, title: 'Фиксики №83' },
+      { id: '9Hwc6XIj3ds', duration: 368, title: 'Фиксики №84' },
+      { id: '3-cnGMIZtyE', duration: 366, title: 'Фиксики №85' },
+      { id: 'vE5HrqrvcOA', duration: 366, title: 'Фиксики №86' },
+      { id: 'oj4GbxyxiJQ', duration: 360, title: 'Фиксики №87' },
+      { id: 'uwsa8N68zFo', duration: 366, title: 'Фиксики №88' },
+      { id: 'XYbvkthFEv4', duration: 368, title: 'Фиксики №89' },
+      { id: 'ET838We_UvE', duration: 368, title: 'Фиксики №90' },
+      { id: 'x6H8hUWyj8A', duration: 361, title: 'Фиксики №91' },
+      { id: 's7yDst6RM7M', duration: 365, title: 'Фиксики №92' },
+      { id: 'RBvPR5OdRe4', duration: 359, title: 'Фиксики №93' },
+      { id: 'nosSlurPVwE', duration: 361, title: 'Фиксики №94' },
+      { id: 'Kru8AHg6NY0', duration: 359, title: 'Фиксики №95' },
+      { id: 'mPNsUKAFTLU', duration: 365, title: 'Фиксики №96' },
+      { id: 'G_0iDuJQbzs', duration: 361, title: 'Фиксики №97' },
+      { id: 'IQjXYehyEB4', duration: 360, title: 'Фиксики №98' },
+      { id: 'GWwEwQNjY4Q', duration: 360, title: 'Фиксики №99' },
+      { id: 'lVM5tWw7uYI', duration: 366, title: 'Фиксики №100' },
+      { id: 'Hp3GeRAzLhI', duration: 369, title: 'Фиксики №101' },
+      { id: '_0FQaM7v4a8', duration: 362, title: 'Фиксики №102' },
+      { id: 'OhI6vvZj7f8', duration: 360, title: 'Фиксики №103' },
+      { id: '1uXqsMoOIFI', duration: 364, title: 'Фиксики №104' },
+      { id: '_E2qFoHLxV4', duration: 364, title: 'Фиксики №105' },
+      { id: 'R7GaLeds8JI', duration: 361, title: 'Фиксики №106' },
+      { id: 'mtdwJIpP8og', duration: 363, title: 'Фиксики №107' },
+      { id: 'SVut6hkUXWQ', duration: 371, title: 'Фиксики №108' },
+      { id: 'bBGHK_xJdSc', duration: 360, title: 'Фиксики №109' },
+      { id: 'WCGdKcgbhns', duration: 361, title: 'Фиксики №110' },
+      { id: '4Chi66oF_Tk', duration: 362, title: 'Фиксики №111' },
+      { id: 'tq0IcnbOKZ8', duration: 360, title: 'Фиксики №112' },
+      { id: '0hm3QODDMv4', duration: 368, title: 'Фиксики №113' },
+      { id: 'EPDt6BGW-lY', duration: 369, title: 'Фиксики №114' },
+      { id: 'PPJdhnazDFs', duration: 362, title: 'Фиксики №115' },
+      { id: '-EpH6MzMHsc', duration: 371, title: 'Фиксики №116' },
+      { id: 'tJbI27uTbiU', duration: 368, title: 'Фиксики №117' },
+      { id: 'ueFE6j18RkY', duration: 367, title: 'Фиксики №118' },
+      { id: 'Wudh0tS4kqA', duration: 371, title: 'Фиксики №119' },
+      { id: '8B6utR2uglc', duration: 371, title: 'Фиксики №120' },
+      { id: '6LHgo4ziw4c', duration: 365, title: 'Фиксики №121' },
+      { id: 'NE7SU1t7BPc', duration: 364, title: 'Фиксики №122' },
+      { id: 'Au_GTNeOZNY', duration: 368, title: 'Фиксики №123' },
+      { id: 'u5oQWnJtlHg', duration: 363, title: 'Фиксики №124' },
+      { id: 'M-voUp2hUSQ', duration: 367, title: 'Фиксики №125' },
+      { id: 'JiN3mEji5d0', duration: 367, title: 'Фиксики №126' },
+      { id: 'zO8Dnqiarwk', duration: 368, title: 'Фиксики №127' },
+      { id: 'jEojOkh1LvA', duration: 361, title: 'Фиксики №128' },
+      { id: 'v1nIvPFUcG4', duration: 364, title: 'Фиксики №129' },
+      { id: 'bGCkPoW9BcA', duration: 363, title: 'Фиксики №130' },
+      { id: 'rmKWTr_Keqk', duration: 372, title: 'Фиксики №131' },
+      { id: 'd0S_LyQQo8A', duration: 367, title: 'Фиксики №132' },
+      { id: 'JBGo5COk-SQ', duration: 370, title: 'Фиксики №133' },
+      { id: 'GgmAmRpyDP0', duration: 365, title: 'Фиксики №134' },
+      { id: 'n3E4k9wT2HQ', duration: 372, title: 'Фиксики №135' },
+      { id: 'h6OGzXj56Ps', duration: 360, title: 'Фиксики №136' },
+      { id: '3oYAel3X9us', duration: 362, title: 'Фиксики №137' },
+      { id: '5lT6Mcn2Ipw', duration: 365, title: 'Фиксики №138' },
+      { id: 'y0zO94xueno', duration: 366, title: 'Фиксики №139' },
+      { id: 'Ka2kDOcGSCU', duration: 365, title: 'Фиксики №140' },
+      { id: 'yHNlbr0Nozc', duration: 368, title: 'Фиксики №141' },
+      { id: 'PqW0GAX0Vp8', duration: 362, title: 'Фиксики №142' },
+      { id: '71Q3mftij9w', duration: 370, title: 'Фиксики №143' },
+      { id: 'S_vy5YI9ctQ', duration: 364, title: 'Фиксики №144' },
+      { id: 'rYVOOhhhgKQ', duration: 364, title: 'Фиксики №145' },
+      { id: 'wSBf3iWfN-U', duration: 361, title: 'Фиксики №146' },
+      { id: 'xSWQCoJQXRU', duration: 365, title: 'Фиксики №147' },
+      { id: 'sTLgZsRcD4M', duration: 363, title: 'Фиксики №148' },
+      { id: '0giwCZLENh8', duration: 360, title: 'Фиксики №149' },
+      { id: '9Zm5M5c-sTU', duration: 361, title: 'Фиксики №150' },
+      { id: 'iIbQswU9h5Q', duration: 364, title: 'Фиксики №151' },
+      { id: 'Uv6IHFiGLrw', duration: 365, title: 'Фиксики №152' },
+      { id: 'PsTYBiAMBy8', duration: 361, title: 'Фиксики №153' },
+      { id: 'F3TwFBu7yFQ', duration: 365, title: 'Фиксики №154' },
+      { id: '4FKhkXn8Sjs', duration: 363, title: 'Фиксики №155' },
+      { id: 'dKeduK7JtiA', duration: 360, title: 'Фиксики №156' },
+      { id: 'xvJZap6UykM', duration: 363, title: 'Фиксики №157' }
+    ]
+  }];
+
+const CHANNELS = RAW_CHANNELS.map(c => ({
+  ...c, schedule: c.schedule.map(i => ({ ...i, duration: parseDuration(i.duration) }))
+}));
+
+let curChan = 0, player = null, muted = true, curIdx = -1;
+
+function renderList() {
+  const list = document.getElementById('channel-list');
+  list.innerHTML = CHANNELS.map((c, i) => `
+    <button class="channel-btn ${i === curChan ? 'active' : ''}" onclick="switchChan(${i})">
+      <span class="name">${i + 1}. ${c.name}</span><span class="channel-num">LIVE</span>
+    </button>`).join('');
+}
+
+function getPos(sched) {
+  const total = sched.reduce((a, x) => a + x.duration, 0);
+  let t = Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 1000) % total;
+  if (t < 0) t += total;
+  let acc = 0;
+  for (let i = 0; i < sched.length; i++) {
+    if (t < acc + sched[i].duration) return { idx: i, start: t - acc };
+    acc += sched[i].duration;
+  }
+  return { idx: 0, start: 0 };
+}
+
+function updateUI() {
+  const c = CHANNELS[curChan];
+  document.getElementById('watermark-logo-img').src = c.logo;
+  document.getElementById('header-brand').innerText = c.name;
+  document.getElementById('channel-footer-name').innerText = `Телеканал «${c.name}»`;
+  document.getElementById('overlay-title').innerText = `Телеканал «${c.name}»`;
+}
+
+function switchChan(i) {
+  curChan = i; curIdx = -1;
+  renderList(); updateUI();
+  const pos = getPos(CHANNELS[curChan].schedule);
+  curIdx = pos.idx;
+  
+  // Установка названия при смене канала
+  document.getElementById('now-title').innerText = CHANNELS[curChan].schedule[pos.idx].title;
+
+  if (player?.loadVideoById) {
+    player.loadVideoById({ videoId: CHANNELS[curChan].schedule[pos.idx].id, startSeconds: pos.start });
+  }
+}
+
+// Загрузка YT API
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+function onYouTubeIframeAPIReady() {
+  renderList(); updateUI();
+  const pos = getPos(CHANNELS[curChan].schedule);
+  curIdx = pos.idx;
+  
+  // Установка названия при старте
+  document.getElementById('now-title').innerText = CHANNELS[curChan].schedule[pos.idx].title;
+
+  player = new YT.Player('player', {
+    videoId: CHANNELS[curChan].schedule[pos.idx].id,
+    playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, start: Math.floor(pos.start) },
+    events: { onReady: e => { e.target.mute(); e.target.playVideo(); setInterval(tick, 1000); } }
+  });
+}
+
+function startTV() {
+  player?.unMute();
+  player?.setVolume(100);
+  muted = false;
+  document.getElementById('mute-btn').innerText = '🔊 Звук';
+  document.getElementById('unmute-overlay').style.display = 'none';
+  document.getElementById('watermark-logo-img').classList.add('visible');
+}
+
+function toggleMute() {
+  if (!player) return;
+  muted = !muted;
+  muted ? player.mute() : player.unMute();
+  document.getElementById('mute-btn').innerText = muted ? '🔇 Звук' : '🔊 Звук';
+}
+
+function fmt(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+}
+
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').innerText = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('date').innerText = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+  const c = CHANNELS[curChan];
+  const pos = getPos(c.schedule);
+  const item = c.schedule[pos.idx];
+  let curTime = player?.getCurrentTime ? player.getCurrentTime() : pos.start;
+  if (isNaN(curTime)) curTime = pos.start;
+
+  if (curIdx !== pos.idx) {
+    curIdx = pos.idx;
+    player?.loadVideoById?.({ videoId: item.id, startSeconds: pos.start });
+    document.getElementById('now-title').innerText = item.title;
+  }
+
+  document.getElementById('prog').style.width = Math.min(100, (curTime / item.duration) * 100) + '%';
+  document.getElementById('elapsed').innerText = fmt(curTime);
+  document.getElementById('remain').innerText = 'осталось ' + fmt(item.duration - curTime);
+
+  // Рендер блока "Далее"
+  let html = '';
+  for (let i = 1; i <= 3; i++) {
+    const nextItem = c.schedule[(pos.idx + i) % c.schedule.length];
+    let calc = (i === 1 ? item.duration - curTime : c.schedule[(pos.idx + i - 1) % c.schedule.length].duration);
+    const targetDate = new Date(Date.now() + calc * 1000);
+    html += `<div class="next-item"><span>${nextItem.title}</span><span class="when">~${String(targetDate.getHours()).padStart(2,'0')}:${String(targetDate.getMinutes()).padStart(2,'0')}</span></div>`;
+  }
+  document.getElementById('next-list').innerHTML = html;
+}
+</script>
+</body>
+</html>
