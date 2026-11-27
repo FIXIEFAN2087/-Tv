@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV — 24/7</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  :root {
+    --bg: #0b0e18; --panel: #141a2c; --panel2: #1a2138; --border: #2a3352;
+    --text: #e8ecf7; --muted: #8a93b2; --accent: #ff007f; --green: #39e75f;
+    --grad: linear-gradient(90deg, #ff007f, #7928ca);
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  .app-container { display: flex; max-width: 1400px; margin: 0 auto; min-height: 100vh; padding: 20px; gap: 20px; }
+  
+  .sidebar { width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; height: fit-content; }
+  .sidebar h2 { font-size: 13px; letter-spacing: 2px; color: var(--muted); font-weight: 700; }
+  .channel-list { display: flex; flex-direction: column; gap: 8px; }
+  .channel-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 14px; border-radius: 12px; cursor: pointer; text-align: left; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; transition: .15s; }
+  .channel-btn:hover { border-color: var(--accent); }
+  .channel-btn.active { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 4px 15px rgba(255,0,127,0.4); }
+  .channel-num { font-size: 11px; opacity: 0.7; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 6px; }
+
+  .main-content { flex: 1; display: flex; flex-direction: column; gap: 16px; max-width: 1000px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .brand-logo { font-size: 24px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; }
+  .live-clock { text-align: right; }
+  .live-clock .time { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .live-clock .date { color: var(--muted); font-size: 12px; }
+  .live-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(57,231,95,.1); border: 1px solid rgba(57,231,95,.4); color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 999px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+  .tv { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+  .screen { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 16/9; width: 100%; }
+  
+  .screen-guard { position: absolute; inset: 0; z-index: 5; pointer-events: auto; }
+  .video-container { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .video-container iframe { width: 100%; height: 100%; border: 0; }
+
+  .live-watermark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  .live-watermark img { width: 100%; height: 100%; object-fit: fill; display: block; opacity: 0; transition: opacity 0.5s ease; }
+  .live-watermark img.visible { opacity: 1; }
+
+  .off-air { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #000; z-index: 20; text-align: center; gap: 14px; }
+  .power-btn { background: var(--grad); color: #fff; border: none; font-weight: 800; font-size: 16px; padding: 14px 28px; border-radius: 999px; cursor: pointer; box-shadow: 0 8px 24px rgba(255,0,127,.6); transition: transform .15s; }
+  .power-btn:hover { transform: translateY(-2px); }
+  
+  .tv-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 2px; }
+  .controls button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 0 16px; height: 38px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: .15s; }
+  .controls button:hover { border-color: var(--accent); }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; }
+  .card h2 { font-size: 11px; letter-spacing: 2px; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+  .now-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+  .progress { height: 6px; background: #0d1122; border-radius: 999px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--grad); width: 0%; transition: width 1s linear; }
+  .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  .next-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(42,51,82,.4); font-size: 13px; }
+  .next-item:last-child { border-bottom: none; }
+  .next-item .when { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  footer { text-align: center; color: var(--muted); font-size: 11px; }
+
+  @media (max-width: 900px) { .app-container { flex-direction: column; } .sidebar { width: 100%; } }
+</style>
+</head>
+<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
+<div class="app-container">
+  <div class="sidebar">
+    <h2>ПЛЕЙЛИСТ</h2>
+    <div class="channel-list" id="channel-list"></div>
+  </div>
+
+  <div class="main-content">
+    <header>
+      <div class="header-left">
+        <div class="brand-logo" id="header-brand">СмешТВ</div>
+        <span class="live-badge"><span class="live-dot"></span>ПРЯМОЙ ЭФИР</span>
+      </div>
+      <div class="live-clock"><div class="time" id="clock">--:--</div><div class="date" id="date"></div></div>
+    </header>
+
+    <div class="tv">
+      <div class="screen">
+        <div class="screen-guard" id="screen-guard"></div>
+        <div class="live-watermark"><img id="watermark-logo-img" alt="Логотип"></div>
+        <div class="video-container"><div id="player"></div></div>
+        
+        <div class="off-air" id="unmute-overlay">
+          <div style="font-size:18px;font-weight:700;" id="overlay-title">Телеканал</div>
+          <button class="power-btn" onclick="startTV()">▶ Включить эфир</button>
+        </div>
+      </div>
+
+      <div class="tv-bar">
+        <div style="font-size:13px;color:var(--muted);" id="channel-footer-name">Телеканал</div>
+        <div class="controls"><button onclick="toggleMute()" id="mute-btn">🔇 Звук</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>СЕЙЧАС В ЭФИРЕ</h2>
+      <div class="now-title" id="now-title">Загрузка…</div>
+      <div class="progress"><div id="prog"></div></div>
+      <div class="times"><span id="elapsed">00:00</span><span id="remain">осталось --:--</span></div>
+    </div>
+
+    <div class="card">
+      <h2>ДАЛЕЕ В ЭФИРЕ</h2>
+      <div id="next-list"></div>
+    </div>
+
+    <footer>TV 24/7</footer>
+  </div>
+</div>
+
+<script>
+function parseDuration(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const p = String(val).split(':').map(Number);
+  return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p.length === 2 ? p[0]*60 + p[1] : Number(val) || 0;
+}
+
+// ПОЛНАЯ ТЕЛЕПРОГРАММА СО ВСЕМИ СЕРИЯМИ
+const RAW_CHANNELS = [
+  {
+    name: "Мультфильмы на чеченском",
+    logo: "https://lh3.googleusercontent.1vDE3oB8chW8LRqZAiYMa6LPI1y8ids-Z",
+    schedule: [
+      { id: 's6boUTsC3gQ', duration: 332, title: 'Ц1енош. 1 серия' },
+      { id: '7MPajo2dgKc', duration: 329, title: 'Ц1енош. 2 серия' },
+      { id: 'F-geIj6HdcM', duration: 340, title: 'Ц1енош. 3 серия' },
+      { id: 'LTXWB_MrYvk', duration: 329, title: 'Ц1енош. 5 серия' },
+      { id: 'Cl6xINe8dc4', duration: 332, title: 'Ц1енош. 6 серия' },
+      { id: 'Ms4gI60ktIY', duration: 325, title: 'Ц1енош. 7 серия' },
+      { id: 'EYMLpR_SMfU', duration: 325, title: 'Ц1енош. 8 серия' },
+      { id: 'q-NbnVDixdM', duration: 329, title: 'Ц1енош. 9 серия' },
+      { id: 'OZ9cWKGAZpc', duration: 327, title: 'Ц1енош. 10 серия' },
+      { id: '7FTdyhvaQYM', duration: 325, title: 'Ц1енош. 11 серия' },
+      { id: 'nPS5UabIojc', duration: 325, title: 'Ц1енош. 12 серия' },
+      { id: '59cPIjDyXeo', duration: 327, title: 'Ц1енош. 13 серия' },
+      { id: 'YXWhCcFNmKc', duration: 333, title: 'Ц1енош. 14 серия' },
+      { id: 'NBxBZC4hVP0', duration: 330, title: 'Ц1енош. 15 серия' },
+      { id: '-_jbfG2_0xM', duration: 329, title: 'Ц1енош. 16 серия' },
+      { id: 'CUs_8cWqJ3w', duration: 327, title: 'Ц1енош. 17 серия' },
+      { id: 'FRGJLTrWjMQ', duration: 340, title: 'Ц1енош. 18 серия' },
+      { id: 'k9cYmQi0DWI', duration: 299, title: 'Ц1енош. 19 серия' },
+      { id: 'RVOyeYREZ48', duration: 334, title: 'Ц1енош. 20 серия' },
+      { id: 'DK9tZVDiOZQ', duration: 342, title: 'Ц1енош. 21 серия' },
+      { id: 'ktkMlWD9mCk', duration: 340, title: 'Ц1енош. 22 серия' },
+      { id: 'yjbsXf0kziQ', duration: 339, title: 'Ц1енош. 23 серия' },
+      { id: 'IYyyYBi4JfA', duration: 332, title: 'Ц1енош. 24 серия' },
+      { id: 'bLuaAEi3OXE', duration: 329, title: 'Ц1енош. 25 серия' },
+      { id: 'mdYfrASiJaw', duration: 321, title: 'Ц1енош. 26 серия' },
+      { id: 'ZdWeibAmqf4', duration: 320, title: 'Ц1енош. 27 серия' },
+      { id: 'mAzJjVbG5wA', duration: 321, title: 'Ц1енош. 28 серия' },
+      { id: 'ldIjBwqEmJI', duration: 321, title: 'Ц1енош. 29 серия' },
+      { id: 'vozVhrzT0pA', duration: 318, title: 'Ц1енош. 30 серия' },
+      { id: 'xl6T52qeQ6U', duration: 321, title: 'Ц1енош. 32 серия' },
+      { id: '7hkWHAHjZvI', duration: 321, title: 'Ц1енош. 34 серия' },
+      { id: '1FUF11yXiqU', duration: 318, title: 'Ц1енош. 35 серия' },
+      { id: 'vbfOcpEO4-0', duration: 320, title: 'Ц1енош. 36 серия' },
+      { id: 'm3D2KOFRoKs', duration: 321, title: 'Ц1енош. 37 серия' },
+      { id: '92dE7bplltw', duration: 320, title: 'Ц1енош. 38 серия' },
+      { id: 'MtbV6gbxJJg', duration: 320, title: 'Ц1енош. 39 серия' },
+      { id: 'C0BDrPOSlQ0', duration: 321, title: 'Ц1енош. 40 серия' },
+      { id: 'fb-gO69uX9g', duration: 314, title: 'Ц1енош. 41 серия' },
+      { id: 'zxJVEb5pSOU', duration: 321, title: 'Ц1енош. 44 серия' },
+      { id: 'rHPg02a1jh0', duration: 320, title: 'Ц1енош. 45 серия' },
+      { id: 'G-R3j0rQza0', duration: 320, title: 'Ц1енош. 46 серия' },
+      { id: '3kPTry1Oc7k', duration: 318, title: 'Ц1енош. 47 серия' },
+      { id: 'oee73PtPGwE', duration: 321, title: 'Ц1енош. 49 серия' },
+      { id: '_LvcAgBueAA', duration: 321, title: 'Ц1енош. 50 серия' },
+      { id: '6DCeGKurcJw', duration: 320, title: 'Ц1енош. 51 серия' },
+      { id: 'tPe3Jl1wro0', duration: 320, title: 'Ц1енош. 52 серия' },
+      { id: 'UdI7OkXhXJ4', duration: 320, title: 'Ц1енош. 54 серия' },
+      { id: 'zTw5AK42iYk', duration: 321, title: 'Ц1енош. 55 серия' },
+      { id: 'IqyA0ANFBBs', duration: 320, title: 'Ц1енош. 56 серия' },
+      { id: 'qAwIJjIverw', duration: 320, title: 'Ц1енош. 57 серия' },
+      { id: 'XdnCA7LSwCw', duration: 320, title: 'Ц1енош. 58 серия' },
+      { id: 'YOifE0ipJSE', duration: 320, title: 'Ц1енош. 59 серия' },
+      { id: '06WcEDDSFuM', duration: 320, title: 'Ц1енош. 60 серия' },
+      { id: 'v8Usb91fI3c', duration: 320, title: 'Ц1енош. 61 серия' },
+      { id: 'hNQnTqPcfao', duration: 320, title: 'Ц1енош. 62 серия' },
+      { id: 'R1Rcvfxdfvw', duration: 319, title: 'Ц1енош. 63 серия' },
+      { id: 'bsMRQx1PFyk', duration: 320, title: 'Ц1енош. 64 серия' },
+      { id: 'WdunF7MgPc8', duration: 320, title: 'Ц1енош. 66 серия' },
+      { id: 'PpH84NXmOiw', duration: 319, title: 'Ц1енош. 67 серия' },
+      { id: 'f3ROoVNv_ig', duration: 320, title: 'Ц1енош. 68 серия' },
+      { id: 'mLmjXURRM9U', duration: 320, title: 'Ц1енош. 69 серия' },
+      { id: 'N-tq2bzMh1k', duration: 319, title: 'Ц1енош. 70 серия' },
+      { id: 'T34t7VLae1g', duration: 320, title: 'Ц1енош. 71 серия' },
+      { id: 'YHi0RMJs0_Q', duration: 320, title: 'Ц1енош. 72 серия' },
+      { id: 'KsvXKVLL0VI', duration: 310, title: 'Ц1енош. 76 серия' },
+      { id: 'DyVOmck2c2s', duration: 320, title: 'Ц1енош. 77 серия' },
+      { id: 'sJhHPPcN08Y', duration: 320, title: 'Ц1енош. 78 серия' },
+      { id: 'mOy50N4KJOs', duration: 320, title: 'Ц1енош. 80 серия' },
+      { id: 'QN4XMX2lksU', duration: 319, title: 'Ц1енош. 82 серия' },
+      { id: 'c2TjsblL2hs', duration: 314, title: 'Ц1енош. 83 серия' },
+      { id: 'U-QIzgKw2Hs', duration: 318, title: 'Ц1енош. 84 серия' },
+      { id: 'mCIyD2c6dsA', duration: 315, title: 'Ц1енош. 86 серия' },
+      { id: 'fvFFxhsq2qM', duration: 335, title: 'Кехаташ. 1 серия' },
+      { id: 'zdOR41rLSKc', duration: 335, title: 'Кехаташ. 2 серия' },
+      { id: '8QBvxGSt0AA', duration: 335, title: 'Кехаташ. 3 серия' },
+      { id: 'jzAQtuQ1j68', duration: 335, title: 'Кехаташ. 4 серия' },
+      { id: 'X0V69NejjxE', duration: 335, title: 'Кехаташ. 5 серия' },
+      { id: '-Ol8s3mhlB4', duration: 335, title: 'Кехаташ. 6 серия' },
+      { id: 'HLxnSolwxvA', duration: 335, title: 'Кехаташ. 7 серия' },
+      { id: 'GkxpbpNz2GA', duration: 335, title: 'Кехаташ. 8 серия' },
+      { id: 'Y2DMoOiTUtg', duration: 335, title: 'Кехаташ. 9 серия' },
+      { id: 'dbSOlAf-5R4', duration: 335, title: 'Кехаташ. 10 серия' },
+      { id: 'Dk4_dxhQb3A', duration: 335, title: 'Кехаташ. 11 серия' },
+      { id: 'Ra0lCEyj6l4', duration: 335, title: 'Кехаташ. 12 серия' },
+      { id: 'Vu9O8R-s4xY', duration: 335, title: 'Кехаташ. 13 серия' },
+      { id: 'RpUSzyybktw', duration: 335, title: 'Кехаташ. 14 серия' },
+      { id: 'Y0_6F_1SV9U', duration: 335, title: 'Кехаташ. 15 серия' },
+      { id: 'ghO3dGQH4mA', duration: 335, title: 'Кехаташ. 16 серия' },
+      { id: 'qoWDQgYEBJk', duration: 335, title: 'Кехаташ. 17 серия' },
+      { id: 'E3O89EPAmq8', duration: 335, title: 'Кехаташ. 18 серия' },
+      { id: '_ex5_jHEqlk', duration: 335, title: 'Кехаташ. 19 серия' },
+      { id: '-2nEutLKUN0', duration: 335, title: 'Кехаташ. 20 серия' },
+      { id: 'Js21JA9jMZM', duration: 335, title: 'Кехаташ. 21 серия' },
+      { id: 'ayGYYQpNOtM', duration: 335, title: 'Кехаташ. 22 серия' },
+      { id: 'YVdx3kOkpc4', duration: 335, title: 'Кехаташ. 23 серия' },
+      { id: 'OyFwLQRBojM', duration: 335, title: 'Кехаташ. 24 серия' },
+      { id: 'UpojAolDvCk', duration: 335, title: 'Кехаташ. 25 серия' },
+      { id: '19VeplrEksk', duration: 335, title: 'Кехаташ. 26 серия' },
+      { id: '8reP0400ubs', duration: 335, title: 'Кехаташ. 27 серия' },
+      { id: 'oRpJldDQXPc', duration: 335, title: 'Кехаташ. 28 серия' },
+      { id: 'gPUICO84LPw', duration: 335, title: 'Кехаташ. 29 серия' },
+      { id: 'a1-ajxoa9w8', duration: 335, title: 'Кехаташ. 30 серия' },
+      { id: 'YmB8p1GKKzY', duration: 335, title: 'Кехаташ. 31 серия' },
+      { id: 'dZCkDBY8iD0', duration: 335, title: 'Кехаташ. 32 серия' },
+      { id: 'eFW8ymRlKhY', duration: 337, title: 'Кехаташ. 33 серия' },
+      { id: 'UAr2tKZz86g', duration: 335, title: 'Кехаташ. 34 серия' },
+      { id: 'QSTAwZtysNQ', duration: 337, title: 'Кехаташ. 35 серия' },
+      { id: '-IRJpSHog_c', duration: 337, title: 'Кехаташ. 36 серия' },
+      { id: 'SKv1Usq-vrM', duration: 335, title: 'Кехаташ. 37 серия' },
+      { id: '-tixQuMnNvM', duration: 335, title: 'Кехаташ. 38 серия' },
+      { id: 'yzpZacw7xmI', duration: 335, title: 'Кехаташ. 39 серия' },
+      { id: 'oj03k-9Lk54', duration: 335, title: 'Кехаташ. 40 серия' },
+      { id: 'e-sWpgOdGOQ', duration: 335, title: 'Кехаташ. 41 серия' },
+      { id: '668hJ2nexEE', duration: 335, title: 'Кехаташ. 42 серия' },
+      { id: 'WLFRjXblfvU', duration: 335, title: 'Кехаташ. 43 серия' },
+      { id: 'r2ZJL_bqMgI', duration: 335, title: 'Кехаташ. 44 серия' },
+      { id: '_iSSMOCML7A', duration: 335, title: 'Кехаташ. 45 серия' },
+      { id: 'DqZlO4tszpA', duration: 335, title: 'Кехаташ. 46 серия' },
+      { id: 'rpashbP5DDE', duration: 335, title: 'Кехаташ. 47 серия' },
+      { id: 'ppov59RC7YQ', duration: 335, title: 'Кехаташ. 48 серия' },
+      { id: '4wARZwRcH2I', duration: 335, title: 'Кехаташ. 49 серия' },
+      { id: 'XoQVqbAx13M', duration: 335, title: 'Кехаташ. 50 серия' },
+      { id: 'yA40-mw6CqA', duration: 334, title: 'Кехаташ. 51 серия' },
+      { id: 'kFcJ0YF7NtQ', duration: 335, title: 'Кехаташ. 52 серия' },
+      { id: '8kvm7ZpSrpo', duration: 335, title: 'Кехаташ. 53 серия' },
+      { id: 'Vyqz56OMeDo', duration: 335, title: 'Кехаташ. 54 серия' },
+      { id: 'wdHora5dcAs', duration: 335, title: 'Кехаташ. 55 серия' },
+      { id: 'Db0_KLwTQow', duration: 335, title: 'Кехаташ. 56 серия' },
+      { id: 'JfBeV_VrhIg', duration: 335, title: 'Кехаташ. 57 серия' },
+      { id: 'CN1dlhDtbFU', duration: 335, title: 'Кехаташ. 58 серия' },
+      { id: 'SOjNSleLb9g', duration: 335, title: 'Кехаташ. 59 серия' },
+      { id: 'tFUaUx5Jqao', duration: 329, title: 'Кехаташ. 60 серия' },
+      { id: '4mQg-NeKnM0', duration: 335, title: 'Кехаташ. 61 серия' },
+      { id: 'K1pNPUtVl0w', duration: 335, title: 'Кехаташ. 62 серия' },
+      { id: 'N1QQn77HkjE', duration: 335, title: 'Кехаташ. 63 серия' },
+      { id: 'l4zXfbcaFIE', duration: 335, title: 'Кехаташ. 64 серия' },
+      { id: 'MKIbVDLYXzg', duration: 335, title: 'Кехаташ. 65 серия' },
+      { id: 'n5FuPb2z5EU', duration: 335, title: 'Кехаташ. 66 серия' },
+      { id: '46-TcYhyCRI', duration: 335, title: 'Кехаташ. 67 серия' },
+      { id: '3-_yTNLH9co', duration: 335, title: 'Кехаташ. 68 серия' },
+      { id: '2-skcQWQNw4', duration: 335, title: 'Кехаташ. 69 серия' },
+      { id: 'mcex6pgORoU', duration: 335, title: 'Кехаташ. 70 серия' },
+      { id: 'FY_Dl01jvfY', duration: 335, title: 'Кехаташ. 71 серия' },
+      { id: '6xmQDydmv9A', duration: 335, title: 'Кехаташ. 72 серия' },
+      { id: 'STTZC7earnM', duration: 335, title: 'Кехаташ. 73 серия' },
+      { id: 'JayB9sr1k1M', duration: 335, title: 'Кехаташ. 74 серия' },
+      { id: '_sIFrSbZ8jg', duration: 335, title: 'Кехаташ. 75 серия' },
+      { id: '4kpUgdfPgrk', duration: 335, title: 'Кехаташ. 76 серия' },
+      { id: 'nKTwCjy5-Sk', duration: 335, title: 'Кехаташ. 77 серия' },
+      { id: '7UazKEzot2c', duration: 335, title: 'Кехаташ. 78 серия' },
+      { id: 'VKdzyeZalT4', duration: 336, title: 'Ча-ча-кIорнеш. 1 серия' },
+      { id: 'w9us3TojpHw', duration: 336, title: 'Ча-ча-кIорнеш. 2 серия' },
+      { id: 'zRptWExRYlA', duration: 336, title: 'Ча-ча-кIорнеш. 3 серия' },
+      { id: 'xsZnVeERDKQ', duration: 336, title: 'Ча-ча-кIорнеш. 4 серия' },
+      { id: 'yhdtZjWamho', duration: 335, title: 'Ча-ча-кIорнеш. 5 серия' },
+      { id: 'UOIZviuBy0w', duration: 336, title: 'Ча-ча-кIорнеш. 6 серия' },
+      { id: 'ffEKAzQJcms', duration: 336, title: 'Ча-ча-кIорнеш. 7 серия' },
+      { id: 'rItS3eLQLd0', duration: 331, title: 'Ча-ча-кIорнеш. 8 серия' },
+      { id: 'XOYRRn4Ig4Q', duration: 335, title: 'Ча-ча-кIорнеш. 9 серия' },
+      { id: '-nfGSZ2ZsWs', duration: 334, title: 'Ча-ча-кIорнеш. 10 серия' },
+      { id: 'Q-lGnrddjOI', duration: 336, title: 'Ча-ча-кIорнеш. 11 серия' },
+      { id: 'CN8c6T8DPWw', duration: 332, title: 'Ча-ча-кIорнеш. 12 серия' },
+      { id: 'SzaMMUS42Pw', duration: 335, title: 'Ча-ча-кIорнеш. 13 серия' },
+      { id: 'xVERoDUIANc', duration: 336, title: 'Ча-ча-кIорнеш. 14 серия' },
+      { id: 'mVALovb2HAw', duration: 332, title: 'Ча-ча-кIорнеш. 15 серия' },
+      { id: 'OUw_mAUmpnM', duration: 336, title: 'Ча-ча-кIорнеш. 16 серия' },
+      { id: 'rPCNeUnugi8', duration: 336, title: 'Ча-ча-кIорнеш. 17 серия' },
+      { id: 'A245VNhjPyc', duration: 335, title: 'Ча-ча-кIорнеш. 18 серия' },
+      { id: 's7thM7aN1uU', duration: 314, title: 'Ча-ча-кIорнеш. 19 серия' },
+      { id: 'T4amTkwyxCE', duration: 336, title: 'Ча-ча-кIорнеш. 20 серия' },
+      { id: 'E1qQIKnZUUM', duration: 336, title: 'Ча-ча-кIорнеш. 21 серия' },
+      { id: 'f2gujGaMsCE', duration: 336, title: 'Ча-ча-кIорнеш. 22 серия' },
+      { id: 'B7R-G1ZohVg', duration: 336, title: 'Ча-ча-кIорнеш. 23 серия' },
+      { id: 'I5CDtZbTSng', duration: 336, title: 'Ча-ча-кIорнеш. 24 серия' },
+      { id: 'QiCq0oxRsC4', duration: 336, title: 'Ча-ча-кIорнеш. 25 серия' },
+      { id: 'rmUIWpnsx4Q', duration: 335, title: 'Ча-ча-кIорнеш. 26 серия' },
+      { id: 'oVhRkPOgIUE', duration: 336, title: 'Ча-ча-кIорнеш. 27 серия' },
+      { id: 'gQ9nHBtGt78', duration: 335, title: 'Ча-ча-кIорнеш. 28 серия' },
+      { id: 'xF1TVtrbUsA', duration: 336, title: 'Ча-ча-кIорнеш. 29 серия' },
+      { id: 'QNGn3DWIbG4', duration: 336, title: 'Ча-ча-кIорнеш. 30 серия' },
+      { id: 'ImVFsnMTAAY', duration: 336, title: 'Ча-ча-кIорнеш. 31 серия' },
+      { id: 'ZF3CVT6hINI', duration: 336, title: 'Ча-ча-кIорнеш. 32 серия' },
+      { id: 'DfWo2TyIoQg', duration: 336, title: 'Ча-ча-кIорнеш. 33 серия' },
+      { id: 'J1YASO6RmyM', duration: 336, title: 'Ча-ча-кIорнеш. 34 серия' },
+      { id: 'MwDHhHTOlXc', duration: 336, title: 'Ча-ча-кIорнеш. 35 серия' },
+      { id: 'XLXGanZQkEA', duration: 335, title: 'Ча-ча-кIорнеш. 36 серия' },
+      { id: 'rEM-RDiw-50', duration: 335, title: 'Ча-ча-кIорнеш. 37 серия' },
+      { id: 'r1LaPV5JeOg', duration: 335, title: 'Ча-ча-кIорнеш. 38 серия' },
+      { id: '6_FankmKWlw', duration: 335, title: 'Ча-ча-кIорнеш. 39 серия' },
+      { id: 'cins6eJHkjI', duration: 336, title: 'Ча-ча-кIорнеш. 40 серия' },
+      { id: 'rNIVcrnkMj0', duration: 336, title: 'Ча-ча-кIорнеш. 41 серия' },
+      { id: 'cilpVbuhDhY', duration: 334, title: 'Ча-ча-кIорнеш. 42 серия' },
+      { id: 'DVRSpDBNJGY', duration: 334, title: 'Ча-ча-кIорнеш. 43 серия' },
+      { id: 'TfPEEVi_abE', duration: 336, title: 'Ча-ча-кIорнеш. 44 серия' },
+      { id: '-hQ3DV8MnMc', duration: 336, title: 'Ча-ча-кIорнеш. 45 серия' },
+      { id: 'vm4uVyVm93Q', duration: 336, title: 'Ча-ча-кIорнеш. 46 серия' },
+      { id: 'HXa1aynwVa8', duration: 336, title: 'Ча-ча-кIорнеш. 47 серия' },
+      { id: '1hLeXYoaY5k', duration: 336, title: 'Ча-ча-кIорнеш. 48 серия' },
+      { id: 'h_R2UzX8F2E', duration: 334, title: 'Ча-ча-кIорнеш. 49 серия' },
+      { id: 'vURZafmlk0g', duration: 328, title: 'Ча-ча-кIорнеш. 50 серия' },
+      { id: 'cmWnfpZtO1w', duration: 336, title: 'Ча-ча-кIорнеш. 51 серия' },
+      { id: 'Zs4gxzxigE8', duration: 336, title: 'Ча-ча-кIорнеш. 52 серия' },
+      { id: 'pSOywJAWX0M', duration: 336, title: 'Ча-ча-кIорнеш. 53 серия' },
+      { id: 'dOERuS1QsTo', duration: 336, title: 'Ча-ча-кIорнеш. 54 серия' },
+      { id: '_VnxKvfdJzE', duration: 336, title: 'Ча-ча-кIорнеш. 55 серия' },
+      { id: 'x8Ww6KiYA8Q', duration: 336, title: 'Ча-ча-кIорнеш. 56 серия' },
+      { id: 'x6cQqfy3-7Y', duration: 336, title: 'Ча-ча-кIорнеш. 57 серия' },
+      { id: 'teRrgdiaetA', duration: 336, title: 'Ча-ча-кIорнеш. 58 серия' },
+      { id: 'FPTZmTyakOA', duration: 336, title: 'Ча-ча-кIорнеш. 59 серия' },
+      { id: 'foJv5WzOPek', duration: 336, title: 'Ча-ча-кIорнеш. 60 серия' },
+      { id: 'lm_gqm2wK-U', duration: 335, title: 'Ча-ча-кIорнеш. 61 серия' },
+      { id: 'iZsmLaSNjKg', duration: 335, title: 'Ча-ча-кIорнеш. 62 серия' },
+      { id: '4Gv-u6Q4I1U', duration: 335, title: 'Ча-ча-кIорнеш. 63 серия' },
+      { id: 'Fgg4RlvexoA', duration: 335, title: 'Ча-ча-кIорнеш. 65 серия' },
+      { id: 'bU9ojso-baQ', duration: 335, title: 'Ча-ча-кIорнеш. 66 серия' },
+      { id: 'liIG5fWjxF0', duration: 335, title: 'Ча-ча-кIорнеш. 67 серия' },
+      { id: 'nolWhlz86D0', duration: 335, title: 'Ча-ча-кIорнеш. 68 серия' },
+      { id: 'frGT9Heite4', duration: 335, title: 'Ча-ча-кIорнеш. 69 серия' },
+      { id: 'YUcxL_14JqY', duration: 335, title: 'Ча-ча-кIорнеш. 70 серия' },
+      { id: 'onBAZ3pGQ9Y', duration: 335, title: 'Ча-ча-кIорнеш. 71 серия' },
+      { id: '0EwxcP3C6eI', duration: 335, title: 'Ча-ча-кIорнеш. 72 серия' },
+      { id: '_ApJladJAfw', duration: 335, title: 'Ча-ча-кIорнеш. 73 серия' },
+      { id: 'M85ayuaeP6Q', duration: 335, title: 'Ча-ча-кIорнеш. 74 серия' },
+      { id: 'Xuc1rvLKgSg', duration: 335, title: 'Ча-ча-кIорнеш. 75 серия' },
+      { id: 'dcvVopt7DVI', duration: 335, title: 'Ча-ча-кIорнеш. 76 серия' },
+      { id: '9xJevuv3JjA', duration: 335, title: 'Ча-ча-кIорнеш. 77 серия' },
+      { id: 'kHXKTF89TmA', duration: 335, title: 'Ча-ча-кIорнеш. 78 серия' },
+      { id: '14ffKRYclcw', duration: 335, title: 'Ча-ча-кIорнеш. 79 серия' },
+      { id: '9bo3lyZQTNQ', duration: 335, title: 'Ча-ча-кIорнеш. 80 серия' },
+      { id: '5sAwsG37SuE', duration: 335, title: 'Ча-ча-кIорнеш. 81 серия' },
+      { id: 'Z4BGB6iCxjA', duration: 335, title: 'Ча-ча-кIорнеш. 82 серия' },
+      { id: 'WUG89vjAjPk', duration: 335, title: 'Ча-ча-кIорнеш. 83 серия' },
+      { id: 'xrSQ3IsU_C8', duration: 335, title: 'Ча-ча-кIорнеш. 84 серия' },
+      { id: 'TAWLOA1IK5U', duration: 335, title: 'Ча-ча-кIорнеш. 85 серия' },
+      { id: 'A9IHzlJ2fxE', duration: 335, title: 'Ча-ча-кIорнеш. 86 серия' },
+      { id: 'JFPtAiIwv28', duration: 335, title: 'Ча-ча-кIорнеш. 87 серия' },
+      { id: 'W1fwgtmNMQQ', duration: 335, title: 'Ча-ча-кIорнеш. 88 серия' },
+      { id: 'XcSy2pPoMS0', duration: 335, title: 'Ча-ча-кIорнеш. 89 серия' },
+      { id: 'EuYDJzXrbto', duration: 335, title: 'Ча-ча-кIорнеш. 90 серия' },
+      { id: 'VeHs8ZGNXOU', duration: 335, title: 'Ча-ча-кIорнеш. 91 серия' },
+      { id: 'JDr_a23vuXc', duration: 335, title: 'Ча-ча-кIорнеш. 92 серия' },
+      { id: '8INstuHEofE', duration: 336, title: 'Ча-ча-кIорнеш. 93 серия' },
+      { id: 'mW6OorPhLco', duration: 336, title: 'Ча-ча-кIорнеш. 94 серия' },
+      { id: 'cuhtu1rHh5g', duration: 336, title: 'Ча-ча-кIорнеш. 95 серия' },
+      { id: 'q_KZip55hBk', duration: 337, title: 'Ча-ча-кIорнеш. 96 серия' },
+      { id: 'LhiDV_HABwA', duration: 336, title: 'Ча-ча-кIорнеш. 97 серия' },
+      { id: '_n_kZXkREtU', duration: 335, title: 'Ча-ча-кIорнеш. 98 серия' },
+      { id: 'M-WArEcKmA4', duration: 336, title: 'Ча-ча-кIорнеш. 99 серия' },
+      { id: 'xbTccrpjTW8', duration: 336, title: 'Ча-ча-кIорнеш. 100 серия' },
+      { id: 'iq26bjIAySc', duration: 336, title: 'Ча-ча-кIорнеш. 101 серия' },
+      { id: 'mLRZeflXmYk', duration: 335, title: 'Ча-ча-кIорнеш. 102 серия' },
+      { id: 'bqafNgx4lx4', duration: 336, title: 'Ча-ча-кIорнеш. 103 серия' },
+      { id: 'cRwjfnKyeV8', duration: 335, title: 'Ча-ча-кIорнеш. 104 серия' },
+      { id: 'XUJP9WSckQ4', duration: 335, title: 'Ча-ча-кIорнеш. 105 серия' },
+      { id: 'k4HYg6NFPzY', duration: 336, title: 'Ча-ча-кIорнеш. 106 серия' },
+      { id: 'GjUOr7JzR8U', duration: 335, title: 'Ча-ча-кIорнеш. 107 серия' },
+      { id: '-HKHXx3nnCk', duration: 336, title: 'Ча-ча-кIорнеш. 108 серия' },
+      { id: '7f0msACLR7E', duration: 336, title: 'Ча-ча-кIорнеш. 109 серия' },
+      { id: 'DoK2gkTtGgk', duration: 336, title: 'Ча-ча-кIорнеш. 110 серия' },
+      { id: 'RAWIpusqa8E', duration: 336, title: 'Ча-ча-кIорнеш. 111 серия' },
+      { id: 'smot_K_H7ek', duration: 335, title: 'Ча-ча-кIорнеш. 112 серия' },
+      { id: 'A_bpZ5cAs2o', duration: 335, title: 'Ча-ча-кIорнеш. 113 серия' },
+      { id: '64ZJKYTZ2g8', duration: 335, title: 'Ча-ча-кIорнеш. 114 серия' },
+      { id: '5Q26jvfe2Gk', duration: 335, title: 'Ча-ча-кIорнеш. 115 серия' },
+      { id: 'kafeeeWJKvA', duration: 335, title: 'Ча-ча-кIорнеш. 116 серия' },
+      { id: 'cDFF7yEWfDw', duration: 335, title: 'Ча-ча-кIорнеш. 117 серия' },
+      { id: 'JVjSbl-tfX8', duration: 335, title: 'Ча-ча-кIорнеш. 118 серия' },
+      { id: 'cHGhH_eqJUg', duration: 335, title: 'Ча-ча-кIорнеш. 119 серия' },
+      { id: 'dVvVYF_ZZo0', duration: 335, title: 'Ча-ча-кIорнеш. 120 серия' },
+      { id: 'nbjPBpQGdD0', duration: 335, title: 'Ча-ча-кIорнеш. 121 серия' },
+      { id: 'zRHTvtumCJI', duration: 335, title: 'Ча-ча-кIорнеш. 122 серия' },
+      { id: 'jsLt5QJgfeo', duration: 335, title: 'Ча-ча-кIорнеш. 123 серия' },
+      { id: 'ru-V_65-nuk', duration: 335, title: 'Ча-ча-кIорнеш. 124 серия' },
+      { id: 'wFnn6hUdVbQ', duration: 336, title: 'Ча-ча-кIорнеш. 125 серия' },
+      { id: '0XWrPx5RDW8', duration: 335, title: 'Ча-ча-кIорнеш. 126 серия' },
+      { id: 'Moj4HDGVxPo', duration: 335, title: 'Ча-ча-кIорнеш. 127 серия' },
+      { id: 'EBH1b5h6_zE', duration: 335, title: 'Ча-ча-кIорнеш. 128 серия' },
+      { id: '6f5WftHAUFY', duration: 335, title: 'Ча-ча-кIорнеш. 129 серия' },
+      { id: 'Gh5Phm8tmw4', duration: 335, title: 'Ча-ча-кIорнеш. 130 серия' },
+      { id: 'W1GZtq9bgOQ', duration: 335, title: 'Ча-ча-кIорнеш. 131 серия' },
+      { id: 'fzE-U1HPCm4', duration: 335, title: 'Ча-ча-кIорнеш. 132 серия' },
+      { id: 'p295v4aub34', duration: 335, title: 'Ча-ча-кIорнеш. 133 серия' },
+      { id: 'quYlHyvtkoQ', duration: 335, title: 'Ча-ча-кIорнеш. 134 серия' },
+      { id: '3C0vuhl0pfk', duration: 335, title: 'Ча-ча-кIорнеш. 135 серия' },
+      { id: 'EVcnlDMQUCg', duration: 335, title: 'Ча-ча-кIорнеш. 136 серия' },
+      { id: 'rtcpxRNOfjI', duration: 335, title: 'Ча-ча-кIорнеш. 137 серия' },
+      { id: '5FtrECrEPj8', duration: 335, title: 'Ча-ча-кIорнеш. 138 серия' },
+      { id: 'ZiKUZprfhes', duration: 335, title: 'Ча-ча-кIорнеш. 139 серия' },
+      { id: 'yv7NBc5WCmw', duration: 335, title: 'Ча-ча-кIорнеш. 140 серия' },
+      { id: 'ExY5uZvyBCM', duration: 335, title: 'Ча-ча-кIорнеш. 141 серия' },
+      { id: 'mIUr3q_6Sp0', duration: 335, title: 'Ча-ча-кIорнеш. 142 серия' },
+      { id: 'knJ4n8gx1z8', duration: 335, title: 'Ча-ча-кIорнеш. 143 серия' },
+      { id: 'gsZ2Cjm4oQw', duration: 335, title: 'Ча-ча-кIорнеш. 144 серия' },
+      { id: 'wssJUIbdzfg', duration: 336, title: 'Ча-ча-кIорнеш. 145 серия' },
+      { id: '9kYXKHESdHw', duration: 335, title: 'Ча-ча-кIорнеш. 146 серия' },
+      { id: 'bmcPGM6855s', duration: 335, title: 'Ча-ча-кIорнеш. 147 серия' },
+      { id: 'bgzP0dE2qbc', duration: 336, title: 'Ча-ча-кIорнеш. 148 серия' },
+      { id: 'sBb3UzXHCn8', duration: 336, title: 'Ча-ча-кIорнеш. 149 серия' },
+      { id: 'BG9u2ikqvoY', duration: 335, title: 'Ча-ча-кIорнеш. 150 серия' },
+      { id: 'A4zHoqplrDU', duration: 336, title: 'Ча-ча-кIорнеш. 151 серия' },
+      { id: '8oxQowdSsug', duration: 335, title: 'Ча-ча-кIорнеш. 152 серия' },
+      { id: 'NvdfXBOL1fE', duration: 335, title: 'Ча-ча-кIорнеш. 153 серия' },
+      { id: 'S4lmbPqizf4', duration: 335, title: 'Ча-ча-кIорнеш. 154 серия' },
+      { id: 'iZSYjuWSZS4', duration: 335, title: 'Ча-ча-кIорнеш. 155 серия' },
+      { id: 'tmdHyRqGsgg', duration: 335, title: 'Ча-ча-кIорнеш. 156 серия' },
+      { id: '0admthblduE', duration: 335, title: 'Ча-ча-кIорнеш. 157 серия' },
+      { id: '8B2sPg5IMBM', duration: 335, title: 'Ча-ча-кIорнеш. 158 серия' },
+      { id: 'ECNlpqhoX8Y', duration: 335, title: 'Ча-ча-кIорнеш. 159 серия' },
+      { id: 'hjyYKSJAfd0', duration: 335, title: 'Ча-ча-кIорнеш. 160 серия' },
+      { id: 'gECJqyD-mhc', duration: 335, title: 'Ча-ча-кIорнеш. 162 серия' },
+      { id: 'qhKt863MMi8', duration: 335, title: 'Ча-ча-кIорнеш. 163 серия' },
+      { id: 'Unylc8gHs8s', duration: 335, title: 'Ча-ча-кIорнеш. 164 серия' },
+      { id: 'DFr1KaeZcB8', duration: 335, title: 'Ча-ча-кIорнеш. 165 серия' },
+      { id: '4PIGDhGZCcs', duration: 335, title: 'Ча-ча-кIорнеш. 166 серия' },
+      { id: 'b9X2p1e-Sfg', duration: 335, title: 'Ча-ча-кIорнеш. 167 серия' },
+      { id: 'UkmGmZoAtAw', duration: 336, title: 'Ча-ча-кIорнеш. 168 серия' },
+      { id: 'jxMM1p_Bd14', duration: 335, title: 'Ча-ча-кIорнеш. 169 серия' },
+      { id: 'bS-OYCc3mJk', duration: 335, title: 'Ча-ча-кIорнеш. 170 серия' },
+      { id: 'fJjZ5v8GDUM', duration: 335, title: 'Ча-ча-кIорнеш. 171 серия' },
+      { id: 'AVYXcsQk7cM', duration: 335, title: 'Ча-ча-кIорнеш. 172 серия' },
+      { id: 'E_XbXduaF6c', duration: 335, title: 'Ча-ча-кIорнеш. 173 серия' },
+      { id: 'wGx5V5rkSpw', duration: 335, title: 'Ча-ча-кIорнеш. 174 серия' },
+      { id: 'IBOC6D89Js8', duration: 336, title: 'Ча-ча-кIорнеш. 175 серия' },
+      { id: 'GR9Flfa53d0', duration: 335, title: 'Ча-ча-кIорнеш. 176 серия' },
+      { id: 'E8WWNIjgKO0', duration: 335, title: 'Ча-ча-кIорнеш. 177 серия' },
+      { id: 'ih06E4ME-kk', duration: 335, title: 'Ча-ча-кIорнеш. 178 серия' },
+      { id: 'eMwe0Z-6Bp8', duration: 336, title: 'Ча-ча-кIорнеш. 179 серия' },
+      { id: 'VrhBfNvagnQ', duration: 335, title: 'Ча-ча-кIорнеш. 180 серия' },
+      { id: '5bpJyHDiVOw', duration: 335, title: 'Ча-ча-кIорнеш. 181 серия' },
+      { id: 'hTgJ91n7aM0', duration: 335, title: 'Ча-ча-кIорнеш. 182 серия' },
+      { id: 'aSZ06GZncP4', duration: 335, title: 'Ча-ча-кIорнеш. 183 серия' },
+      { id: 'o_osqCGMedc', duration: 335, title: 'Ча-ча-кIорнеш. 184 серия' },
+      { id: 'pyIqNmMz6so', duration: 335, title: 'Ча-ча-кIорнеш. 185 серия' },
+      { id: '9OMJxwsW-bA', duration: 335, title: 'Ча-ча-кIорнеш. 186 серия' },
+      { id: 'oaIA1ycy6A4', duration: 335, title: 'Ча-ча-кIорнеш. 187 серия' },
+      { id: 'gFYuqxOJFxA', duration: 335, title: 'Ча-ча-кIорнеш. 188 серия' },
+      { id: 'nwoJlCxKNsA', duration: 335, title: 'Ча-ча-кIорнеш. 189 серия' },
+      { id: 'bNVE3EpHBZU', duration: 335, title: 'Ча-ча-кIорнеш. 190 серия' },
+      { id: 'AEabmmLM_NQ', duration: 335, title: 'Ча-ча-кIорнеш. 191 серия' },
+      { id: 'nXHqwJ0kjYE', duration: 335, title: 'Ча-ча-кIорнеш. 192 серия' },
+      { id: 'SdtErVneu8Q', duration: 335, title: 'Ча-ча-кIорнеш. 193 серия' },
+      { id: '3lNn4yVybZ8', duration: 335, title: 'Ча-ча-кIорнеш. 194 серия' },
+      { id: 'oRNN5MNPDGk', duration: 335, title: 'Ча-ча-кIорнеш. 195 серия' },
+      { id: 'arOUBP2U6yk', duration: 335, title: 'Ча-ча-кIорнеш. 196 серия' },
+      { id: 'ywWt-HbIrRY', duration: 335, title: 'Ча-ча-кIорнеш. 197 серия' },
+      { id: 'EWWTmOEZ6JE', duration: 335, title: 'Ча-ча-кIорнеш. 198 серия' },
+      { id: '06bFP76CN00', duration: 335, title: 'Ча-ча-кIорнеш. 199 серия' },
+      { id: 'nrxSoTEyDDE', duration: 335, title: 'Ча-ча-кIорнеш. 200 серия' },
+      { id: 'BIB5flPbcCg', duration: 335, title: 'Ча-ча-кIорнеш. 201 серия' },
+      { id: '4SfMWYCOQrc', duration: 335, title: 'Ча-ча-кIорнеш. 202 серия' },
+      { id: 'XNLmdRd1MvI', duration: 333, title: 'Ча-ча-кIорнеш. 203 серия' },
+      { id: 'nmVsIDar4bM', duration: 335, title: 'Ча-ча-кIорнеш. 204 серия' },
+      { id: 'QDcvKp_jKWY', duration: 335, title: 'Ча-ча-кIорнеш. 205 серия' },
+      { id: 'uPvoaX1FbCk', duration: 335, title: 'Ча-ча-кIорнеш. 206 серия' },
+      { id: 'idzqQ8Ltq58', duration: 335, title: 'Ча-ча-кIорнеш. 207 серия' },
+      { id: 'W97aw1ph1kk', duration: 335, title: 'Ча-ча-кIорнеш. 208 серия' },
+      { id: 'gauONn2niyI', duration: 335, title: 'Ча-ча-кIорнеш. 209 серия' },
+      { id: 'IA37HQ2dWlc', duration: 335, title: 'Ча-ча-кIорнеш. 210 серия' },
+      { id: '8xk7xquVhnM', duration: 335, title: 'Ча-ча-кIорнеш. 211 серия' },
+      { id: 'tZvhCBf2bJ0', duration: 335, title: 'Ча-ча-кIорнеш. 212 серия' },
+      { id: 'A8JIg1SzSSU', duration: 335, title: 'Ча-ча-кIорнеш. 213 серия' },
+      { id: 'OJ9zWaXVAOs', duration: 335, title: 'Ча-ча-кIорнеш. 214 серия' },
+      { id: 'qMwzgFYGb4k', duration: 335, title: 'Ча-ча-кIорнеш. 215 серия' },
+      { id: 'uFvN3YHuIIw', duration: 335, title: 'Ча-ча-кIорнеш. 216 серия' },
+      { id: '2t5B5hlTVoY', duration: 335, title: 'Ча-ча-кIорнеш. 217 серия' },
+      { id: 'ztd2JCEz9xQ', duration: 335, title: 'Ча-ча-кIорнеш. 218 серия' },
+      { id: 'nQ06SN9UVD0', duration: 335, title: 'Ча-ча-кIорнеш. 219 серия' },
+      { id: 'y8XKBi16qpE', duration: 334, title: 'Ча-ча-кIорнеш. 220 серия' },
+      { id: 'UBHoptrdj3s', duration: 334, title: 'Ча-ча-кIорнеш. 221 серия' },
+      { id: '1t89G2w37-k', duration: 334, title: 'Ча-ча-кIорнеш. 222 серия' },
+      { id: 'kYEtRU170Rg', duration: 334, title: 'Ча-ча-кIорнеш. 223 серия' },
+      { id: 'hjjNi1lNQ-Q', duration: 334, title: 'Ча-ча-кIорнеш. 224 серия' },
+      { id: '-J27Ljs8qdQ', duration: 335, title: 'Ча-ча-кIорнеш. 225 серия' },
+      { id: '5IR-6VknQiU', duration: 335, title: 'Ча-ча-кIорнеш. 226 серия' },
+      { id: '27FbnRQFxTY', duration: 334, title: 'Ча-ча-кIорнеш. 227 серия' },
+      { id: 'Yi6BblJ88PU', duration: 336, title: 'Ча-ча-кIорнеш. 228 серия' },
+      { id: 'VHckz2FJTFA', duration: 335, title: 'Ча-ча-кIорнеш. 229 серия' },
+      { id: 'Y1as4UHxhSg', duration: 335, title: 'Ча-ча-кIорнеш. 232 серия' },
+      { id: 'IEKsXd7EZbw', duration: 335, title: 'Ча-ча-кIорнеш. 233 серия' },
+      { id: 'j73YQ9GxHDE', duration: 335, title: 'Ча-ча-кIорнеш. 234 серия' }
+    ]
+  }];
+
+// ============================================
+// НАСТРОЙКА РОТАЦИИ ЭФИРА
+// title  — начало названия серий передачи (как в schedule)
+// blocks — сколько частей этой передачи идёт подряд
+// Порядок в списке = порядок чередования. Чтобы добавить передачу,
+// достаточно дописать одну строку { title: 'Название', blocks: 1 }.
+// В группу попадают все серии, чьё название начинается с title.
+// ============================================
+const SHOWS = [
+  { title: 'Ча-ча-кIорнеш',        blocks: 1 },
+  { title: 'Кехаташ',     blocks: 1 },
+  { title: 'Ц1енош', blocks: 1 },
+];
+
+function gcd2(a, b) { return b ? gcd2(b, a % b) : a; }
+function lcm2(a, b) { return a / gcd2(a, b) * b; }
+
+// Строит циклический эфир: по очереди блоки из каждой передачи.
+// Когда части передачи закончились — она начинается заново,
+// а остальные передачи продолжают идти дальше.
+function buildRotation(raw) {
+  const groups = SHOWS
+    .map(s => ({ blocks: Math.max(1, s.blocks), items: raw.filter(i => i.title.startsWith(s.title)) }))
+    .filter(g => g.items.length);
+  if (groups.length < 2) return raw;
+  const cycles = groups.map(g => Math.ceil(g.items.length / g.blocks));
+  const totalTurns = cycles.reduce((a, b) => lcm2(a, b), 1) * groups.length;
+  const ptr = groups.map(() => 0);
+  const out = [];
+  for (let t = 0; t < totalTurns; t++) {
+    const gi = t % groups.length;
+    const g = groups[gi];
+    const take = Math.min(g.blocks, g.items.length - ptr[gi]);
+    for (let b = 0; b < take; b++) out.push(g.items[ptr[gi]++]);
+    if (ptr[gi] >= g.items.length) ptr[gi] = 0;
+  }
+  return out;
+}
+
+const CHANNELS = RAW_CHANNELS.map(c => ({
+  ...c, schedule: buildRotation(c.schedule).map(i => ({ ...i, duration: parseDuration(i.duration) }))
+}));
+
+let curChan = 0, player = null, muted = true, curIdx = -1;
+
+function renderList() {
+  const list = document.getElementById('channel-list');
+  list.innerHTML = CHANNELS.map((c, i) => `
+    <button class="channel-btn ${i === curChan ? 'active' : ''}" onclick="switchChan(${i})">
+      <span class="name">${i + 1}. ${c.name}</span><span class="channel-num">LIVE</span>
+    </button>`).join('');
+}
+
+function getPos(sched) {
+  const total = sched.reduce((a, x) => a + x.duration, 0);
+  let t = Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 1000) % total;
+  if (t < 0) t += total;
+  let acc = 0;
+  for (let i = 0; i < sched.length; i++) {
+    if (t < acc + sched[i].duration) return { idx: i, start: t - acc };
+    acc += sched[i].duration;
+  }
+  return { idx: 0, start: 0 };
+}
+
+function updateUI() {
+  const c = CHANNELS[curChan];
+  document.getElementById('watermark-logo-img').src = c.logo;
+  document.getElementById('header-brand').innerText = c.name;
+  document.getElementById('channel-footer-name').innerText = `Телеканал «${c.name}»`;
+  document.getElementById('overlay-title').innerText = `Телеканал «${c.name}»`;
+}
+
+function switchChan(i) {
+  curChan = i; curIdx = -1;
+  renderList(); updateUI();
+  const pos = getPos(CHANNELS[curChan].schedule);
+  curIdx = pos.idx;
+  
+  // Установка названия при смене канала
+  document.getElementById('now-title').innerText = CHANNELS[curChan].schedule[pos.idx].title;
+
+  if (player?.loadVideoById) {
+    player.loadVideoById({ videoId: CHANNELS[curChan].schedule[pos.idx].id, startSeconds: pos.start });
+  }
+}
+
+// Загрузка YT API
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+function onYouTubeIframeAPIReady() {
+  renderList(); updateUI();
+  const pos = getPos(CHANNELS[curChan].schedule);
+  curIdx = pos.idx;
+  
+  // Установка названия при старте
+  document.getElementById('now-title').innerText = CHANNELS[curChan].schedule[pos.idx].title;
+
+  player = new YT.Player('player', {
+    videoId: CHANNELS[curChan].schedule[pos.idx].id,
+    playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, start: Math.floor(pos.start) },
+    events: { onReady: e => { e.target.mute(); e.target.playVideo(); setInterval(tick, 1000); } }
+  });
+}
+
+function startTV() {
+  player?.unMute();
+  player?.setVolume(100);
+  muted = false;
+  document.getElementById('mute-btn').innerText = '🔊 Звук';
+  document.getElementById('unmute-overlay').style.display = 'none';
+  document.getElementById('watermark-logo-img').classList.add('visible');
+}
+
+function toggleMute() {
+  if (!player) return;
+  muted = !muted;
+  muted ? player.mute() : player.unMute();
+  document.getElementById('mute-btn').innerText = muted ? '🔇 Звук' : '🔊 Звук';
+}
+
+function fmt(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+}
+
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').innerText = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('date').innerText = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+  const c = CHANNELS[curChan];
+  const pos = getPos(c.schedule);
+  const item = c.schedule[pos.idx];
+  let curTime = player?.getCurrentTime ? player.getCurrentTime() : pos.start;
+  if (isNaN(curTime)) curTime = pos.start;
+
+  if (curIdx !== pos.idx) {
+    curIdx = pos.idx;
+    player?.loadVideoById?.({ videoId: item.id, startSeconds: pos.start });
+    document.getElementById('now-title').innerText = item.title;
+  }
+
+  document.getElementById('prog').style.width = Math.min(100, (curTime / item.duration) * 100) + '%';
+  document.getElementById('elapsed').innerText = fmt(curTime);
+  document.getElementById('remain').innerText = 'осталось ' + fmt(item.duration - curTime);
+
+  // Рендер блока "Далее"
+  let html = '';
+  for (let i = 1; i <= 3; i++) {
+    const nextItem = c.schedule[(pos.idx + i) % c.schedule.length];
+    let calc = (i === 1 ? item.duration - curTime : c.schedule[(pos.idx + i - 1) % c.schedule.length].duration);
+    const targetDate = new Date(Date.now() + calc * 1000);
+    html += `<div class="next-item"><span>${nextItem.title}</span><span class="when">~${String(targetDate.getHours()).padStart(2,'0')}:${String(targetDate.getMinutes()).padStart(2,'0')}</span></div>`;
+  }
+  document.getElementById('next-list').innerHTML = html;
+}
+</script>
+</body>
+</html>
